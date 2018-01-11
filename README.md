@@ -1,0 +1,2 @@
+# GHE Administration
+GHEAdmin is a Powershell module design to make administration of your GitHub Enterprise installation easier. Of course you can use the GUI, but sometimes the CLI is better at making quick adjustments.
