@@ -11,7 +11,11 @@ function Invoke-GHEInitialConfiguration {
 
 		# The management password for the GHE virtual machine
 		[Parameter(Mandatory = $true)]
-		[PSCredential]$Credential,
+		[String]$MgmtPassword,
+
+		# The first administrative user for the GHE virtual machine
+		[Parameter(Mandatory = $true)]
+		[String]$AdminUser,
 
 		# The first administrative user email address for the GHE virtual machine
 		[Parameter(Mandatory = $true)]
@@ -34,13 +38,13 @@ function Invoke-GHEInitialConfiguration {
 		as they don't fully support multipart/form-data yet
 		#>
 		Write-Debug -Message "Calling CURL to inject license and initial password"
-		curl -k -L -X POST $SetupUrl -F license=@$LicenseFile -F "password=$($Credential.GetNetworkCredential().Password)"
+		curl -k -L -X POST $SetupUrl -F license=@$LicenseFile -F "password=$MgmtPassword"
 
 		Write-Debug -Message "Starting configuration process"
-		Invoke-RestMethod -Method POST -Uri "https://api_key:$($Credential.GetNetworkCredential().Password)@$($ComputerName):8443/setup/api/configure" -SkipCertificateCheck
+		Invoke-RestMethod -Method POST -Uri "https://api_key:$MgmtPassword@$($ComputerName):8443/setup/api/configure" -SkipCertificateCheck
 		do {
 			Write-Verbose -Message "Waiting for configuration process to complete..."
-			$Result = Invoke-RestMethod -Method GET -Uri "https://api_key:$($Credential.GetNetworkCredential().Password)@$($ComputerName):8443/setup/api/configcheck" -SkipCertificateCheck
+			$Result = Invoke-RestMethod -Method GET -Uri "https://api_key:$MgmtPassword@$($ComputerName):8443/setup/api/configcheck" -SkipCertificateCheck
 			Write-Debug -Message "Current result of configuration process: $($Result.Status)"
 			Start-Sleep -Seconds 30
 		} until ($Result.status -eq 'success' -or $Result.status -eq 'failed')
@@ -52,7 +56,7 @@ function Invoke-GHEInitialConfiguration {
 		$RegexPattern = '(?<=value=")(.*?)(?=")'
 		$AuthToken = ([regex]::matches($AuthFullString, $RegexPattern)).Value[1]
 		Write-Debug -Message "Current value of AuthToken: $AuthToken"
-		curl -X POST -k -v -b ~/cookies -c ~/cookies -F "authenticity_token=$AuthToken" -F "user[login]=$($Credential.GetNetworkCredential().UserName)" -F "user[email]=$AdminEmail" -F "user[password]=$($Credential.GetNetworkCredential().Password)" -F "user[password_confirmation]=$($Cred.GetNetworkCredential().Password)" -F "source_label=Detail Form" $JoinUrl >~/github-curl.out 2>&1
+		curl -X POST -k -v -b ~/cookies -c ~/cookies -F "authenticity_token=$AuthToken" -F "user[login]=$AdminUser" -F "user[email]=$AdminEmail" -F "user[password]=$MgmtPassword" -F "user[password_confirmation]=$MgmtPassword" -F "source_label=Detail Form" $JoinUrl >~/github-curl.out 2>&1
 	}
 	End {
 		Write-Debug -Message 'Exiting Function: Invoke-GHEInitialConfiguration'
@@ -67,7 +71,7 @@ function New-GHEOrganization {
 
 		# Credential object for authentication against the GHE API
 		[Parameter(Mandatory = $true)]
-		[PSCredential]$Credential,
+		[pscredential]$Credential,
 
 		# Display name of the Organization
 		[Parameter(Mandatory = $true)]
@@ -87,6 +91,11 @@ function New-GHEOrganization {
 		$QualifiedUrl = "https://$ComputerName/api/v3/admin/organizations"
 		Write-Debug -Message "Qualified URL is: $QualifiedUrl"
 
+		$Headers = @{
+			'Authorization' = "token $AuthToken"
+			'Accept' = 'application/vnd.github.v3+json'
+		}
+		Write-Debug -Message "HTTP Headers: $(Out-String -InputObject $Headers)"
 	}
 	Process {
 		Foreach ($OrgHandle in $Handle) {
@@ -101,7 +110,7 @@ function New-GHEOrganization {
 			Write-Debug -Message "JSON data: $JSONData"
 
 			Write-Debug -Message 'Calling REST API'
-			Invoke-RestMethod -Method POST -Uri $QualifiedUrl -Headers $Headers -Body $JSONData -Authentication Basic -Credential $Credential -SkipCertificateCheck
+			Invoke-RestMethod -Method POST -Uri $QualifiedUrl -Headers $Headers -Body $JSONData -SkipCertificateCheck
 		}
 	}
 	End {
@@ -125,7 +134,7 @@ function New-GHEUser {
 
 		# Personal Access Token for authentication against the GHE API
 		[Parameter(Mandatory = $true)]
-		[PSCredential]$Credential
+		[String]$AuthToken
 	)
 	Begin {
 		Write-Debug -Message 'Entered Function: Create-GHEUser'
@@ -133,6 +142,11 @@ function New-GHEUser {
 		$QualifiedUrl = "https://$ComputerName/api/v3/admin/users"
 		Write-Debug -Message "Qualified URL is: $QualifiedUrl"
 
+		$Headers = @{
+			'Authorization' = "token $AuthToken"
+			'Accept' = 'application/vnd.github.v3+json'
+		}
+		Write-Debug -Message "HTTP Headers: $(Out-String -InputObject $Headers)"
 	}
 	Process {
 		Foreach ($User in $Handle) {
@@ -146,7 +160,7 @@ function New-GHEUser {
 			Write-Debug -Message "JSON data: $JSONData"
 
 			Write-Debug -Message "Calling REST API"
-			Invoke-RestMethod -Method POST -Uri $QualifiedUrl -Headers $Headers -Body $JSONData -Authentication Basic -Credential $Credential -SkipCertificateCheck
+			Invoke-RestMethod -Method POST -Uri $QualifiedUrl -Headers $Headers -Body $JSONData -SkipCertificateCheck
 		}
 	}
 	End {
@@ -162,7 +176,7 @@ function New-GHETeam {
 
 		# Personal Access Token for authentication against the GHE API
 		[Parameter(Mandatory = $true)]
-		[PSCredential]$Credential,
+		[String]$AuthToken,
 
 		# User/handle of the organization
 		[Parameter(Mandatory = $true)]
@@ -193,6 +207,12 @@ function New-GHETeam {
 
 		$QualifiedUrl = "https://$ComputerName/api/v3/orgs/$Organization/teams"
 		Write-Debug -Message "Qualified URL is: $QualifiedUrl"
+
+		$Headers = @{
+			'Authorization' = "token $AuthToken"
+			'Accept' = 'application/vnd.github.v3+json'
+		}
+		Write-Debug -Message "HTTP Headers: $(Out-String -InputObject $Headers)"
 	}
 	Process {
 		Foreach ($Team in $Handle) {
@@ -209,161 +229,10 @@ function New-GHETeam {
 			Write-Debug -Message "JSON data: $JSONData"
 
 			Write-Debug -Message "Calling REST API"
-			Invoke-RestMethod -Method POST -Uri $QualifiedUrl -Headers $Headers -Body $JSONData -Authentication Basic -Credential $Credential -SkipCertificateCheck
+			Invoke-RestMethod -Method POST -Uri $QualifiedUrl -Headers $Headers -Body $JSONData -SkipCertificateCheck
 		}
 	}
 	End {
 		Write-Debug -Message 'Exiting Function: Create-GHETeam'
-	}
-}
-function New-GHERepo {
-	[CmdletBinding()]
-	Param(
-		# DNS address of the primary GHE instance
-		[Parameter(Mandatory = $true)]
-		[String]$ComputerName,
-
-		# Credentials for authentication to GHE
-		[Parameter(Mandatory = $true)]
-		[PSCredential]$Credential,
-
-		# Name of the repository to create
-		[String[]]$Name,
-
-		# Description for the repository
-		[String]$Description,
-
-		# URL with more information about the repository
-		[String]$HomePage,
-
-		# Organization owner of the repository
-		[String]$Organization,
-
-		# Switch to create a private repository
-		[Switch]$Private,
-
-		# Switch to turn off issue tracking
-		[Switch]$DisableIssues,
-
-		# Switch to turn off project boards
-		[Switch]$DisableProjects,
-
-		# Switch to turn off wiki support
-		[Switch]$DisableWiki,
-
-		# The ID of the team that will have access to this repository
-		[Int]$TeamId,
-
-		# Switch to automatically initialize the repo with an emtpy README file and commit
-		[Switch]$AutoInit,
-
-		# The language or platform of the template to apply
-		[String]$GitIgnoreTemplate,
-
-		# The license template for the repository
-		[String]$LicenseTemplate,
-
-		# Switch to disable squash merging pull requests
-		[Switch]$DisableSquash,
-
-		# Switch to disable merge commits/pull requests
-		[Switch]$DisableMerge,
-
-		# Switch to disable rebase merge commits/pull requests
-		[Switch]$DisableRebase
-	)
-	Begin {
-		Write-Debug -Message 'Entered Function: Create-GHERepo'
-
-		If ($Organization -ne $null) {
-			Write-Debug -Message "Organization is defined, creating an Organization repo"
-			$QualifiedUrl = "https://$ComputerName/api/v3/orgs/$Organization/repos"
-			Write-Debug -Message "Qualified URL is: $QualifiedUrl"
-		}
-		Else {
-			Write-Debug -Message "Organization is not defined, creating a User repo"
-			$QualifiedUrl = "https://$ComputerName/api/v3/user/repos"
-			Write-Debug -Message "Qualified URL is: $QualifiedUrl"
-		}
-	}
-	Process {
-		Foreach ($Repo in $Name) {
-			$Body = @{
-				'name' = $Repo
-				'description' = $(If ($Description -eq $null){ ,@() } Else { $Description })
-				'homepage' = $(If ($HomePage -eq $null){ ,@() } Else { $HomePage })
-				'private' = $(If ($Private -eq $false){ $false } Else { $true })
-				'has_issues' = $(If ($DisableIssues -eq $false){ $true } Else { $false })
-				'has_projects' = $(If ($DisableProjects -eq $false){ $true } Else { $false })
-				'has_wiki' = $(If ($DisableWiki -eq $false){ $true } Else { $false })
-				'auto_init' = $(If ($AutoInit -eq $false){ $false } Else { $true })
-				'gitignore_template' = $(If ($GitIgnoreTemplate -eq $null){ ,@() } Else { $GitIgnoreTemplate })
-				'license_template' = $(If ($LicenseTemplate -eq $null){ ,@() } Else { $LicenseTemplate })
-				'allow_squash_merge' = $(If ($DisableSquash -eq $false){ $true } Else { $false })
-				'allow_merge_commit' = $(If ($DisableMerge -eq $false){ $true } Else { $false })
-				'allow_rebase_merge' = $(If ($DisableRebase -eq $false){ $true } Else { $false })
-			}
-			If ($TeamId -ne 0){
-				Write-Debug -Message "TeamId is: $TeamId"
-				$Body.Add('team_id', $TeamId)
-			}
-			Write-Debug -Message "Request Body: $(Out-String -InputObject $Body)"
-
-			$JSONData = ConvertTo-Json -InputObject $Body
-			Write-Debug -Message "JSON data: $JSONData"
-
-			Write-Debug -Message "Calling REST API"
-			Invoke-RestMethod -Method POST -Uri $QualifiedUrl -Body $JSONData -Authentication Basic -Credential $Credential -SkipCertificateCheck
-		}
-	}
-	End {
-
-	}
-}
-function Add-GHEOrgMembership {
-	[CmdletBinding()]
-	Param(
-		# URL of the API end point
-		[Parameter(Mandatory = $true)]
-		[String]$ComputerName,
-
-		# Credential object for authentication against the GHE API
-		[Parameter(Mandatory = $true)]
-		[PSCredential]$Credential,
-
-		# Username/login for the user
-		[Parameter(Mandatory = $true)]
-		[String[]]$Handle,
-
-		# Organization handle that the member will join
-		[Parameter(Mandatory = $true)]
-		[String]$Organization,
-
-		# Role to give the user in the organization (default is 'member')
-		[Parameter(Mandatory = $false)]
-		[String]$Role = 'member'
-	)
-	Begin {
-		Write-Debug -Message "Entered function: Add-GHEOrgMembership"
-	}
-	Process {
-		Foreach ($Name in $Handle) {
-			$QualifiedUrl = "https://$ComputerName/api/v3/orgs/$Organization/memberships/$Name"
-			Write-Debug -Message "Qualified URL is: $QualifiedUrl"
-
-			$Body = @{
-				'role' = $Role
-			}
-			Write-Debug -Message "Request Body: $(Out-String -InputObject $Body)"
-
-			$JSONData = ConvertTo-Json -InputObject $Body
-			Write-Debug -Message "JSON data: $(Out-String -InputObject $JSONData)"
-
-			Write-Debug -Message "Calling REST API"
-			Invoke-WebRequest -Uri $QualifiedUrl -Method PUT -Body $JSONData -Authentication Basic -Credential $Credential -SkipCertificateCheck
-		}
-	}
-	End {
-		Write-Debug -Message 'Exiting function: Add-GHEOrgMembership'
 	}
 }
