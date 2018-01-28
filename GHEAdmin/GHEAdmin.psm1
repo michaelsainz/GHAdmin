@@ -320,3 +320,50 @@ function New-GHERepo {
 
 	}
 }
+function Add-GHEOrgMembership {
+	[CmdletBinding()]
+	Param(
+		# URL of the API end point
+		[Parameter(Mandatory = $true)]
+		[String]$ComputerName,
+
+		# Credential object for authentication against the GHE API
+		[Parameter(Mandatory = $true)]
+		[PSCredential]$Credential,
+
+		# Username/login for the user
+		[Parameter(Mandatory = $true)]
+		[String[]]$Handle,
+
+		# Organization handle that the member will join
+		[Parameter(Mandatory = $true)]
+		[String]$Organization,
+
+		# Role to give the user in the organization (default is 'member')
+		[Parameter(Mandatory = $false)]
+		[String]$Role = 'member'
+	)
+	Begin {
+		Write-Debug -Message "Entered function: Add-GHEOrgMembership"
+	}
+	Process {
+		Foreach ($Name in $Handle) {
+			$QualifiedUrl = "https://$ComputerName/api/v3/orgs/$Organization/memberships/$Name"
+			Write-Debug -Message "Qualified URL is: $QualifiedUrl"
+
+			$Body = @{
+				'role' = $Role
+			}
+			Write-Debug -Message "Request Body: $(Out-String -InputObject $Body)"
+
+			$JSONData = ConvertTo-Json -InputObject $Body
+			Write-Debug -Message "JSON data: $(Out-String -InputObject $JSONData)"
+
+			Write-Debug -Message "Calling REST API"
+			Invoke-WebRequest -Uri $QualifiedUrl -Method PUT -Body $JSONData -Authentication Basic -Credential $Credential -SkipCertificateCheck
+		}
+	}
+	End {
+		Write-Debug -Message 'Exiting function: Add-GHEOrgMembership'
+	}
+}
