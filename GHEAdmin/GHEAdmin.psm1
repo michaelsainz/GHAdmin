@@ -52,7 +52,7 @@ function Invoke-GHEInitialConfiguration {
 		$RegexPattern = '(?<=value=")(.*?)(?=")'
 		$AuthToken = ([regex]::matches($AuthFullString, $RegexPattern)).Value[1]
 		Write-Debug -Message "Current value of AuthToken: $AuthToken"
-		curl -X POST -k -v -b ~/cookies -c ~/cookies -F "authenticity_token=$AuthToken" -F "user[login]=$($Credential.GetNetworkCredential().UserName)" -F "user[email]=$AdminEmail" -F "user[password]=$($Credential.GetNetworkCredential().Password)" -F "user[password_confirmation]=$($Cred.GetNetworkCredential().Password)" -F "source_label=Detail Form" $JoinUrl >~/github-curl.out 2>&1
+		curl -X POST -k -v -b ~/cookies -c ~/cookies -F "authenticity_token=$AuthToken" -F "user[login]=$($Credential.GetNetworkCredential().UserName)" -F "user[email]=$AdminEmail" -F "user[password]=$($Credential.GetNetworkCredential().Password)" -F "user[password_confirmation]=$($Credential.GetNetworkCredential().Password)" -F "source_label=Detail Form" $JoinUrl >~/github-curl.out 2>&1
 	}
 	End {
 		Write-Debug -Message 'Exiting Function: Invoke-GHEInitialConfiguration'
