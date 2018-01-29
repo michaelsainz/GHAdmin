@@ -34,19 +34,21 @@ function Invoke-GHEInitialConfiguration {
 		as they don't fully support multipart/form-data yet
 		#>
 		Write-Debug -Message "Calling CURL to inject license and initial password"
-		curl -k -L -X POST $SetupUrl -F license=@$LicenseFile -F "password=$($Credential.GetNetworkCredential().Password)"
+		$Result = curl -k -L -X POST $SetupUrl -F license=@$LicenseFile -F "password=$($Credential.GetNetworkCredential().Password)"
+		Write-Debug -Message "Result of CURL request injecting license: $(Out-String -InputObject $Result)"
 
 		Write-Debug -Message "Starting configuration process"
-		Invoke-RestMethod -Method POST -Uri "https://api_key:$($Credential.GetNetworkCredential().Password)@$($ComputerName):8443/setup/api/configure" -SkipCertificateCheck
+		$Result = Invoke-RestMethod -Method POST -Uri "https://api_key:$($Credential.GetNetworkCredential().Password)@$($ComputerName):8443/setup/api/configure" -SkipCertificateCheck
 		do {
 			Write-Verbose -Message "Waiting for configuration process to complete..."
 			$Result = Invoke-RestMethod -Method GET -Uri "https://api_key:$($Credential.GetNetworkCredential().Password)@$($ComputerName):8443/setup/api/configcheck" -SkipCertificateCheck
-			Write-Debug -Message "Current result of configuration process: $($Result.Status)"
+			Write-Debug -Message "Current result of configuration process: $(Out-String -InputObject $Result.Status)"
 			Start-Sleep -Seconds 30
 		} until ($Result.status -eq 'success' -or $Result.status -eq 'failed')
 
 		Write-Debug -Message "Creating first user"
-		curl -k -v -L -c ~/cookies $JoinUrl >~/github-curl.out
+		$Result = curl -k -v -L -c ~/cookies $JoinUrl >~/github-curl.out
+		Write-Debug -Message "Result of CURL request for grabbing the Authentication Token: $(Out-String -InputObject $Result)"
 		$AuthFullString = (grep 'authenticity_token' ~/github-curl.out | head -1)
 		Write-Debug -Message "Current value of AuthFullString: $AuthFullString"
 		$RegexPattern = '(?<=value=")(.*?)(?=")'
@@ -101,7 +103,8 @@ function New-GHEOrganization {
 			Write-Debug -Message "JSON data: $JSONData"
 
 			Write-Debug -Message 'Calling REST API'
-			Invoke-RestMethod -Method POST -Uri $QualifiedUrl -Headers $Headers -Body $JSONData -Authentication Basic -Credential $Credential -SkipCertificateCheck
+			$Result = Invoke-RestMethod -Method POST -Uri $QualifiedUrl -Headers $Headers -Body $JSONData -Authentication Basic -Credential $Credential -SkipCertificateCheck
+			Write-Debug -Message "Result of REST request for organization ${OrgHandle}: $(Out-String -InputObject $Result)"
 		}
 	}
 	End {
@@ -146,7 +149,8 @@ function New-GHEUser {
 			Write-Debug -Message "JSON data: $JSONData"
 
 			Write-Debug -Message "Calling REST API"
-			Invoke-RestMethod -Method POST -Uri $QualifiedUrl -Headers $Headers -Body $JSONData -Authentication Basic -Credential $Credential -SkipCertificateCheck
+			$Result = Invoke-RestMethod -Method POST -Uri $QualifiedUrl -Headers $Headers -Body $JSONData -Authentication Basic -Credential $Credential -SkipCertificateCheck
+			Write-Debug -Message "Result of REST request for user ${User}: $(Out-String -InputObject $Result)"
 		}
 	}
 	End {
@@ -209,7 +213,8 @@ function New-GHETeam {
 			Write-Debug -Message "JSON data: $JSONData"
 
 			Write-Debug -Message "Calling REST API"
-			Invoke-RestMethod -Method POST -Uri $QualifiedUrl -Headers $Headers -Body $JSONData -Authentication Basic -Credential $Credential -SkipCertificateCheck
+			$Result = Invoke-RestMethod -Method POST -Uri $QualifiedUrl -Headers $Headers -Body $JSONData -Authentication Basic -Credential $Credential -SkipCertificateCheck
+			Write-Debug -Message "Result of REST request for team ${Team}: $(Out-String -InputObject $Result)"
 		}
 	}
 	End {
@@ -313,7 +318,8 @@ function New-GHERepo {
 			Write-Debug -Message "JSON data: $JSONData"
 
 			Write-Debug -Message "Calling REST API"
-			Invoke-RestMethod -Method POST -Uri $QualifiedUrl -Body $JSONData -Authentication Basic -Credential $Credential -SkipCertificateCheck
+			$Result = Invoke-RestMethod -Method POST -Uri $QualifiedUrl -Body $JSONData -Authentication Basic -Credential $Credential -SkipCertificateCheck
+			Write-Debug -Message "Result of REST request for repo ${repo}: $(Out-String -InputObject $Result)"
 		}
 	}
 	End {
@@ -360,7 +366,8 @@ function Add-GHEOrgMembership {
 			Write-Debug -Message "JSON data: $(Out-String -InputObject $JSONData)"
 
 			Write-Debug -Message "Calling REST API"
-			Invoke-WebRequest -Uri $QualifiedUrl -Method PUT -Body $JSONData -Authentication Basic -Credential $Credential -SkipCertificateCheck
+			$Result = Invoke-WebRequest -Uri $QualifiedUrl -Method PUT -Body $JSONData -Authentication Basic -Credential $Credential -SkipCertificateCheck
+			Write-Debug -Message "Result of REST request for membership ${Name}: $(Out-String -InputObject $Result)"
 		}
 	}
 	End {
