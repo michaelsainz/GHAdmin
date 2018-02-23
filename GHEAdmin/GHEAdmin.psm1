@@ -374,3 +374,54 @@ function Add-GHEOrgMembership {
 		Write-Debug -Message 'Exiting function: Add-GHEOrgMembership'
 	}
 }
+function Add-GHETeamMembership {
+	[CmdletBinding()]
+	Param(
+		# URL of the API end point
+		[Parameter(Mandatory = $true)]
+		[String]$ComputerName,
+
+		# Credential object for authentication against the GHE API
+		[Parameter(Mandatory = $true)]
+		[PSCredential]$Credential,
+
+		# Username/login for the team
+		[Parameter(Mandatory = $true)]
+		[String]$TeamHandle,
+
+		# Username/login for the user
+		[Parameter(Mandatory = $true)]
+		[String[]]$UserHandle,
+
+		# The role that the user will have on the specified team
+		[Parameter(Mandatory = $true)]
+		[String]$Role
+	)
+
+	Begin {
+		Write-Debug -Message "Entered function: Add-GHETeamMembership"
+	}
+	Process {
+		Foreach ($Name in $Handle) {
+			$QualifiedUrl = "https://$ComputerName/api/v3/teams/$TeamHandle/memberships/$UserHandle"
+			Write-Debug -Message "Qualified URL is: $QualifiedUrl"
+
+			$Body = @{
+				'role' = $Role
+			}
+
+			$JSONData = ConvertTo-Json -InputObject $Body
+			Write-Debug -Message "JSON data: $(Out-String -InputObject $JSONData)"
+
+			Write-Debug -Message "Calling REST API"
+			$Result = Invoke-WebRequest -Uri $QualifiedUrl -Method PUT -Body $JSONData -Authentication Basic -Credential $Credential -SkipCertificateCheck
+			Write-Debug -Message "Result of REST request for membership ${Name}: $(Out-String -InputObject $Result)"
+
+		}
+	}
+
+	End {
+		Write-Debug -Message 'Exiting function: Add-GHETeamMembership'
+
+	}
+}
