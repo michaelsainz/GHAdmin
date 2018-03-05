@@ -11,7 +11,11 @@ function Invoke-GHEInitialConfiguration {
 
 		# The management password for the GHE virtual machine
 		[Parameter(Mandatory = $true)]
-		[PSCredential]$Credential,
+		[String]$MgmtPassword,
+
+		# The first administrative user for the GHE virtual machine
+		[Parameter(Mandatory = $true)]
+		[String]$AdminUser,
 
 		# The first administrative user email address for the GHE virtual machine
 		[Parameter(Mandatory = $true)]
@@ -69,7 +73,7 @@ function New-GHEOrganization {
 
 		# Credential object for authentication against the GHE API
 		[Parameter(Mandatory = $true)]
-		[PSCredential]$Credential,
+		[pscredential]$Credential,
 
 		# Display name of the Organization
 		[Parameter(Mandatory = $true)]
@@ -89,6 +93,11 @@ function New-GHEOrganization {
 		$QualifiedUrl = "https://$ComputerName/api/v3/admin/organizations"
 		Write-Debug -Message "Qualified URL is: $QualifiedUrl"
 
+		$Headers = @{
+			'Authorization' = "token $AuthToken"
+			'Accept' = 'application/vnd.github.v3+json'
+		}
+		Write-Debug -Message "HTTP Headers: $(Out-String -InputObject $Headers)"
 	}
 	Process {
 		Foreach ($OrgHandle in $Handle) {
@@ -128,7 +137,7 @@ function New-GHEUser {
 
 		# Personal Access Token for authentication against the GHE API
 		[Parameter(Mandatory = $true)]
-		[PSCredential]$Credential
+		[String]$AuthToken
 	)
 	Begin {
 		Write-Debug -Message 'Entered Function: Create-GHEUser'
@@ -136,6 +145,11 @@ function New-GHEUser {
 		$QualifiedUrl = "https://$ComputerName/api/v3/admin/users"
 		Write-Debug -Message "Qualified URL is: $QualifiedUrl"
 
+		$Headers = @{
+			'Authorization' = "token $AuthToken"
+			'Accept' = 'application/vnd.github.v3+json'
+		}
+		Write-Debug -Message "HTTP Headers: $(Out-String -InputObject $Headers)"
 	}
 	Process {
 		Foreach ($User in $Handle) {
@@ -166,7 +180,7 @@ function New-GHETeam {
 
 		# Personal Access Token for authentication against the GHE API
 		[Parameter(Mandatory = $true)]
-		[PSCredential]$Credential,
+		[String]$AuthToken,
 
 		# User/handle of the organization
 		[Parameter(Mandatory = $true)]
@@ -197,6 +211,12 @@ function New-GHETeam {
 
 		$QualifiedUrl = "https://$ComputerName/api/v3/orgs/$Organization/teams"
 		Write-Debug -Message "Qualified URL is: $QualifiedUrl"
+
+		$Headers = @{
+			'Authorization' = "token $AuthToken"
+			'Accept' = 'application/vnd.github.v3+json'
+		}
+		Write-Debug -Message "HTTP Headers: $(Out-String -InputObject $Headers)"
 	}
 	Process {
 		Foreach ($Team in $Handle) {
