@@ -102,7 +102,7 @@ function New-GHEOrganization {
 			Write-Debug -Message "JSON data: $JSONData"
 
 			Write-Debug -Message 'Calling REST API'
-			$Result = Invoke-RestMethod -Method POST -Uri $QualifiedUrl -Body $JSONData -Authentication Basic -Credential $Credential -SkipCertificateCheck -Debug
+			$Result = Invoke-RestMethod -Method POST -Uri $QualifiedUrl -Body $JSONData -Authentication Basic -Credential $Credential -SkipCertificateCheck
 			Write-Debug -Message "Result of REST request for organization ${OrgHandle}: $(Out-String -InputObject $Result)"
 		}
 	}
