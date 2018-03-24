@@ -219,6 +219,48 @@ function New-GHETeam {
 		Write-Debug -Message 'Exiting Function: Create-GHETeam'
 	}
 }
+function Remove-GHETeam {
+	[CmdletBinding()]
+	Param(
+		# URL of the API end point
+		[Parameter(Mandatory = $true)]
+		[String]$ComputerName,
+
+		# Credential object for authentication against the GHE API
+		[Parameter(Mandatory = $true)]
+		[PSCredential]$Credential,
+
+		# Username/login for the team to remove
+		[Parameter(Mandatory = $true)]
+		[String]$Handle,
+
+		# Handle for the org from which the team exists in
+		[Parameter(Mandatory = $true)]
+		[String]$Organization
+	)
+
+	Begin {
+		Write-Debug -Message "Entered function: Remove-GHETeam"
+	}
+	Process {
+		Foreach ($Name in $Handle) {
+			Write-Debug -Message "Querying for team ID"
+			$Teams = Invoke-RestMethod -Uri "https://$ComputerName/api/v3/orgs/$Organization/teams" -Method GET -Authentication Basic -Credential $Credential -SkipCertificateCheck
+
+			Foreach ($Team in $Teams) {
+				If ($Team.Name -eq $Handle) {
+					Write-Debug -Message "Removing team id: $($Team.id)"
+					Invoke-RestMethod -Uri "https://$ComputerName/api/v3/teams/$($Team.id)" -Method DELETE -Authentication Basic -Credential $Credential -SkipCertificateCheck
+				}
+			}
+		}
+	}
+
+	End {
+		Write-Debug -Message 'Exiting function: Remove-GHETeam'
+
+	}
+}
 function New-GHERepo {
 	[CmdletBinding()]
 	Param(
