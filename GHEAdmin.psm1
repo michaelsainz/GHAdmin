@@ -183,6 +183,34 @@ function New-GHEUser {
 		Write-Debug -Message 'Exiting Function: Create-GHEUser'
 	}
 }
+function Get-GHEUser {
+	[CmdletBinding()]
+	Param(
+		# URL of the API end point
+		[Parameter(Mandatory = $true)]
+		[String]$ComputerName,
+
+		# Username/login of the user
+		[Parameter(Mandatory = $false)]
+		[String[]]$Handle,
+
+		# Personal Access Token for authentication against the GHE API
+		[Parameter(Mandatory = $true)]
+		[PSCredential]$Credential
+	)
+	Begin {
+		Write-Debug -Message 'Entered Function: Get-GHEUser'
+	}
+	Process {
+		Foreach ($User in $Handle) {
+			Write-Debug -Message "Querying for user: $User"
+			Invoke-RestMethod -Uri "https://$ComputerName/api/v3/users/$User" -Method GET -Authentication Basic -Credential $Credential -SkipCertificateCheck
+		}
+	}
+	End {
+		Write-Debug -Message 'Exiting Function: Get-GHEUser'
+	}
+}
 function Get-GHETeam {
 	[CmdletBinding()]
 	Param(
