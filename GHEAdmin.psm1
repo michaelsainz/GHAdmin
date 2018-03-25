@@ -110,6 +110,34 @@ function New-GHEOrganization {
 		Write-Debug -Message 'Exiting Function: New-GHEOrganization'
 	}
 }
+function Get-GHEOrganization {
+	[CmdletBinding()]
+	Param(
+		# URL of the API end point
+		[Parameter(Mandatory = $true)]
+		[String]$ComputerName,
+
+		# Credential object for authentication against the GHE API
+		[Parameter(Mandatory = $true)]
+		[PSCredential]$Credential,
+
+		# User/handle of the organization
+		[Parameter(Mandatory = $true)]
+		[String[]]$Handle
+	)
+	Begin {
+		Write-Debug -Message 'Entered Function: Get-GHEOrganization'
+	}
+	Process {
+		Foreach ($OrgName in $Handle) {
+			Write-Debug -Message "Querying for organization: $OrgName"
+			Invoke-RestMethod -Uri "https://$ComputerName/api/v3/orgs/$OrgName" -Method GET -Authentication Basic -Credential $Credential -SkipCertificateCheck
+		}
+	}
+	End {
+		Write-Debug -Message 'Exited Function: Get-GHEOrganization'
+	}
+}
 function New-GHEUser {
 	[CmdletBinding()]
 	Param(
