@@ -155,6 +155,47 @@ function New-GHEUser {
 		Write-Debug -Message 'Exiting Function: Create-GHEUser'
 	}
 }
+function Get-GHETeam {
+	[CmdletBinding()]
+	Param(
+		# URL of the API end point
+		[Parameter(Mandatory = $true)]
+		[String]$ComputerName,
+
+		# Personal Access Token for authentication against the GHE API
+		[Parameter(Mandatory = $true)]
+		[PSCredential]$Credential,
+
+		# User/handle of the organization
+		[Parameter(Mandatory = $true)]
+		[String]$Handle,
+
+		# The organization that the team will be associated with
+		[Parameter(Mandatory = $true)]
+		[String]$Organization
+	)
+	Begin {
+		Write-Debug -Message 'Entered Function: Get-GHETeam'
+	}
+	Process {
+		Foreach ($Name in $Handle) {
+			Write-Debug -Message "Querying for id of team: $Name"
+			$Teams = Invoke-RestMethod -Uri "https://$ComputerName/api/v3/orgs/$Organization/teams" -Method GET -Authentication Basic -Credential $Credential -SkipCertificateCheck
+
+			Foreach ($Team in $Teams) {
+				Write-Debug -Message "Checking team id: $($Team.id)"
+				If ($Team.Name -eq $Handle) {
+					Write-Debug -Message "Found match for team id: $($Team.id)"
+					$WebResult = Invoke-RestMethod -Uri "https://$ComputerName/api/v3/teams/$($Team.id)" -Method GET -Authentication Basic -Credential $Credential -SkipCertificateCheck
+				}
+				Write-Output -InputObject $WebResult
+			}
+		}
+	}
+	End {
+		Write-Debug -Message 'Exiting Function: Get-GHETeam'
+	}
+}
 function New-GHETeam {
 	[CmdletBinding()]
 	Param(
@@ -258,7 +299,6 @@ function Remove-GHETeam {
 
 	End {
 		Write-Debug -Message 'Exiting function: Remove-GHETeam'
-
 	}
 }
 function New-GHERepo {
