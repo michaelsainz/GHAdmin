@@ -780,6 +780,40 @@ function Add-GHEOrgMembership {
 		Write-Debug -Message 'Exiting function: Add-GHEOrgMembership'
 	}
 }
+function Remove-GHEOrgMembership {
+	[CmdletBinding()]
+	Param(
+		# URL of the API end point
+		[Parameter(Mandatory = $true)]
+		[String]$ComputerName,
+
+		# Credential object for authentication against the GHE API
+		[Parameter(Mandatory = $true)]
+		[PSCredential]$Credential,
+
+		# Name of the user to remove from an organization
+		[Parameter(Mandatory = $true)]
+		[String[]]$Name,
+
+		# Name of the organization to remove users from
+		[Parameter(Mandatory = $true)]
+		[String]$Organization
+	)
+	Begin {
+		Write-Debug -Message 'Entered function: Remove-GHEOrgMembership'
+	}
+	Process {
+		Foreach ($User in $Name) {
+			Write-Debug -Message "Removing user: $User"
+
+			$WebResult = Invoke-RestMethod -Uri "https://$ComputerName/api/v3/orgs/$Organization/memberships/$User" -Method DELETE -Authentication Basic -Credential $Cred -SkipCertificateCheck
+			Write-Debug -Message "Result of REST request for the removal of the repository: $(Out-String -InputObject $WebResult)"
+		}
+	}
+	End {
+		Write-Debug -Message 'Exiting Function: Remove-GHEOrgMembership'
+	}
+}
 function Add-GHETeamMembership {
 	[CmdletBinding()]
 	Param(
