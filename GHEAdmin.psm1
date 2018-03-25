@@ -585,6 +585,119 @@ function New-GHERepo {
 
 	}
 }
+function Get-GHERepo {
+	[CmdletBinding()]
+	Param(
+		# URL of the API end point
+		[Parameter(Mandatory = $true)]
+		[String]$ComputerName,
+
+		# Credential object for authentication against the GHE API
+		[Parameter(Mandatory = $true)]
+		[PSCredential]$Credential,
+
+		# Username/login for the user/organization
+		[Parameter(Mandatory = $true)]
+		[String]$Owner,
+
+		# Name of the repository
+		[Parameter(Mandatory = $true)]
+		[String[]]$Name
+	)
+	Begin {
+		Write-Debug -Message "Entered function: Get-GHERepo"
+	}
+	Process {
+		Foreach ($Repo in $Name) {
+			Write-Debug -Message "Querying repository: $Repo"
+			$QualifiedUrl = "https://$ComputerName/api/v3/repos/$Owner/$Repo"
+
+			$Result = Invoke-RestMethod -Uri $QualifiedUrl -Method GET -Authentication Basic -Credential $Credential -SkipCertificateCheck
+			Write-Debug -Message "Result of REST request for the querying the repo: $(Out-String -InputObject $Result)"
+
+			Write-Output -InputObject $Result
+		}
+	}
+	End {
+		Write-Debug -Message "Exited function: Get-GHERepo"
+	}
+}
+function Set-GHERepoProperty {
+	[CmdletBinding()]
+	Param(
+		# URL of the API end point
+		[Parameter(Mandatory = $true)]
+		[String]$ComputerName,
+
+		# Credential object for authentication against the GHE API
+		[Parameter(Mandatory = $true)]
+		[PSCredential]$Credential,
+
+		# Handle/Owner of the repository
+		[Parameter(Mandatory = $true)]
+		[String]$Owner,
+
+		# Name of the repository
+		[Parameter(Mandatory = $true)]
+		[String[]]$Name,
+
+		# The hashtable that has the properties and values to update on the repository
+		[Parameter(Mandatory = $false)]
+		[HashTable]$Data,
+
+		# The property you want to update on the repository
+		[Parameter(Mandatory = $false)]
+		[String]$Property,
+
+		# The property value you want to update on the repository
+		[Parameter(Mandatory = $false)]
+		[String]$Value
+	)
+	Begin {
+		Write-Debug -Message 'Entered Function: Set-GHERepoProperty'
+	}
+	Process {
+		If ($Data) {
+			Write-Debug -Message 'Updating the repo using the bulk data hashtable method'
+			Foreach ($Repo in $Name) {
+				Write-Debug -Message "Setting properties on repo: $Repo"
+
+				If (($Data.ContainsKey('name')) -eq $false) {
+					Write-Debug -Message '$Data does not have a name property, adding property.'
+					$Data.Add('name', $Repo)
+				}
+				Write-Debug -Message "Value of `$Data object: $(Out-String -InputObject $Data)"
+
+				$Body = ConvertTo-Json -InputObject $Data
+				Write-Debug -Message "Current value of JSON: $(Out-String -InputObject $Body)"
+
+				$WebResult = Invoke-RestMethod -Uri "https://$ComputerName/api/v3/repos/$Owner/$Repo" -Method PATCH -Body $Body -Authentication Basic -Credential $Credential -SkipCertificateCheck
+				Write-Debug -Message "Result of REST request for repo ${Repo}: $(Out-String -InputObject $WebResult)"
+			}
+		}
+		Else {
+			Write-Debug -Message 'Updating the repo using the single property method'
+			Foreach ($Repo in $Name) {
+				Write-Debug -Message "Setting property `"$Property`" to `"$Value`" on repo: $Repo"
+
+				$PSPayload = @{
+					'name' = $Repo
+					$Property = $Value
+				}
+				Write-Debug -Message "Value of `$PSPayload: $(Out-String -InputObject $PSPayload)"
+
+				$Body = ConvertTo-Json -InputObject $PSPayload
+				Write-Debug -Message "Value of JSON object: $(Out-String -InputObject $Body)"
+
+				$WebResult = Invoke-RestMethod -Uri "https://$ComputerName/api/v3/repos/$Owner/$Repo" -Method PATCH -Body $Body -Authentication Basic -Credential $Credential -SkipCertificateCheck
+				Write-Debug -Message "Result of REST request for repo ${Repo}: $(Out-String -InputObject $WebResult)"
+			}
+		}
+	}
+	End{
+		Write-Debug -Message 'Exited Function: Set-GHERepoProperty'
+	}
+}
 function Add-GHEOrgMembership {
 	[CmdletBinding()]
 	Param(
