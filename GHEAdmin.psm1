@@ -1,4 +1,20 @@
 function Invoke-GHEInitialConfiguration {
+	<#
+	.SYNOPSIS
+		Configures the GitHub Enterprise appliance.
+	.DESCRIPTION
+		This cmdlet kicks off the initial configuration process that supplies
+		the username, password and license file to the configuration pass.
+	.EXAMPLE
+		PS ~/ Invoke-GHEIntialConfiguration -ComputerName myGHEInstance.myhost.com -AdminEmail testadmin@myhost.com -AdminCredential (Get-Credential) -LicenseFile /Users/testadmin/Documents/GHELicense.ghl
+		This command kicks off the configuration phase on "myGHEInstance.myhost.com" and once the instance is ready to accept data it will create a user with an email address of "testadmin@myhost.com" and the credentials you typed.
+	.INPUTS
+		None
+	.OUTPUTS
+		None
+	.NOTES
+		None
+	#>
 	[CmdletBinding()]
 	Param(
 		# File path to the GHE license file
