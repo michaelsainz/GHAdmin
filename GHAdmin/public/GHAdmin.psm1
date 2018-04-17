@@ -140,14 +140,14 @@ function New-GHEOrganization {
 		Write-Debug -Message 'Exiting Function: New-GHEOrganization'
 	}
 }
-function Get-GHEOrganization {
+function Get-GHOrganization {
 	<#
 	.SYNOPSIS
 		Get information about an Organization
 	.DESCRIPTION
 		This cmdlet retrieves information about the specified Organization and returns JSON
 	.EXAMPLE
-		PS ~/ Get-GHEOrganization -ComputerName myGHEInstance.myhost.com -Credential (Get-Credential) -Handle 'NCC'
+		PS ~/ Get-GHOrganization -ComputerName myGHEInstance.myhost.com -Credential (Get-Credential) -Handle 'NCC'
 		This command connects to the myGHEInstance.myhost.com instance and prompts for credentials, which authenticates you and then retrieves the NCC Organization which is then returned as JSON data.
 	.INPUTS
 		System.String
@@ -161,7 +161,7 @@ function Get-GHEOrganization {
 	[CmdletBinding()]
 	Param(
 		# URL of the API end point
-		[Parameter(Mandatory = $true)]
+		[Parameter(Mandatory = $false, ParameterSetName='GHE_API')]
 		[String]$ComputerName,
 
 		# Credential object for authentication against the GHE API
@@ -170,19 +170,53 @@ function Get-GHEOrganization {
 
 		# User/handle of the organization
 		[Parameter(Mandatory = $true)]
-		[String[]]$Handle
+		[String[]]$Handle,
+
+		# Custom API Version Header
+		[Parameter(Mandatory = $false)]
+		[String]$APIVersionHeader = 'application/vnd.github.v3+json',
+
+		# One-Time Passcode for two-factor authentication
+		[Parameter(Mandatory=$false)]
+		[String]$OneTimePasscode
 	)
 	Begin {
-		Write-Debug -Message 'Entered Function: Get-GHEOrganization'
+		Write-Debug -Message 'Entered Function: Get-GHOrganization'
+
+		If ($PSCmdlet.ParameterSetName -eq 'GHE_API') {
+			Write-Debug -Message 'GHE_API Parameter Set'
+			$BaseUrl = "https://$ComputerName/api/v3"
+			Write-Debug -Message "BaseUrl is: $BaseUrl"
+		}
+		Else {
+			Write-Debug -Message 'Default Parameter Set (github.com API)'
+			$BaseUrl = 'https://api.github.com'
+			Write-Debug -Message "BaseUrl is: $BaseUrl"
+		}
+
+		$Header = @{
+			"Accept" = "$APIVersionHeader"
+		}
+		If ($OneTimePasscode) {
+			$Header.Add('X-GitHub-OTP',$OneTimePasscode)
+		}
 	}
 	Process {
-		Foreach ($OrgName in $Handle) {
-			Write-Debug -Message "Querying for organization: $OrgName"
-			Invoke-RestMethod -Uri "https://$ComputerName/api/v3/orgs/$OrgName" -Method GET -Authentication Basic -Credential $Credential -SkipCertificateCheck
+		If ($PSCmdlet.ParameterSetName -eq 'GHE_API') {
+			Foreach ($OrgName in $Handle) {
+					Write-Debug -Message "Querying for organization: $OrgName"
+					Invoke-RestMethod -Uri "$BaseUrl/orgs/$OrgName" -Method GET -Headers $Header -Authentication Basic -Credential $Credential -SkipCertificateCheck
+			}
+		}
+		Else {
+			Foreach ($OrgName in $Handle) {
+				Write-Debug -Message "Querying for organization: $OrgName"
+				Invoke-RestMethod -Uri "$BaseUrl/orgs/$OrgName" -Method GET -Headers $Header -Authentication Basic -Credential $Credential -SkipCertificateCheck
+			}
 		}
 	}
 	End {
-		Write-Debug -Message 'Exited Function: Get-GHEOrganization'
+		Write-Debug -Message 'Exited Function: Get-GHOrganization'
 	}
 }
 function New-GHEUser {
