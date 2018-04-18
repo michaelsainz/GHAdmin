@@ -280,14 +280,14 @@ function New-GHEUser {
 		Write-Debug -Message 'Exiting Function: Create-GHEUser'
 	}
 }
-function Get-GHEUser {
+function Get-GHUser {
 	<#
 	.SYNOPSIS
 		Get information on a user account
 	.DESCRIPTION
 		This cmdlet retrieves information on a GitHub User account
 	.EXAMPLE
-		PS ~/ Get-GHEUser -ComputerName myGHEInstance.myhost.com -Credential (Get-Credential) -Handle 'MonaLisa'
+		PS ~/ Get-GHUser -ComputerName myGHEInstance.myhost.com -Credential (Get-Credential) -Handle 'MonaLisa'
 		This command connects to the myGHEInstance.myhost.com instance and prompts for credentials, which then authenticates you and then retrieves information on the account MonaLisa
 	.INPUTS
 		None
@@ -300,7 +300,7 @@ function Get-GHEUser {
 	[CmdletBinding()]
 	Param(
 		# URL of the API end point
-		[Parameter(Mandatory = $true)]
+		[Parameter(Mandatory = $false, ParameterSetName='GHE_API')]
 		[String]$ComputerName,
 
 		# Username/login of the user
@@ -309,19 +309,53 @@ function Get-GHEUser {
 
 		# Personal Access Token for authentication against the GHE API
 		[Parameter(Mandatory = $true)]
-		[PSCredential]$Credential
+		[PSCredential]$Credential,
+
+		# One-Time Passcode for two-factor authentication
+		[Parameter(Mandatory=$false)]
+		[String]$OneTimePasscode,
+
+		# Custom API Version Header
+		[Parameter(Mandatory = $false)]
+		[String]$APIVersionHeader = 'application/vnd.github.v3+json'
 	)
 	Begin {
-		Write-Debug -Message 'Entered Function: Get-GHEUser'
+		Write-Debug -Message 'Entered Function: Get-GHUser'
+
+		If ($PSCmdlet.ParameterSetName -eq 'GHE_API') {
+			Write-Debug -Message 'GHE_API Parameter Set'
+			$BaseUrl = "https://$ComputerName/api/v3"
+			Write-Debug -Message "BaseUrl is: $BaseUrl"
+		}
+		Else {
+			Write-Debug -Message 'Default Parameter Set (github.com API)'
+			$BaseUrl = 'https://api.github.com'
+			Write-Debug -Message "BaseUrl is: $BaseUrl"
+		}
+
+		$Header = @{
+			"Accept" = "$APIVersionHeader"
+		}
+		If ($OneTimePasscode) {
+			$Header.Add('X-GitHub-OTP',$OneTimePasscode)
+		}
 	}
 	Process {
-		Foreach ($User in $Handle) {
-			Write-Debug -Message "Querying for user: $User"
-			Invoke-RestMethod -Uri "https://$ComputerName/api/v3/users/$User" -Method GET -Authentication Basic -Credential $Credential -SkipCertificateCheck
+		If ($PSCmdlet.ParameterSetName -eq 'GHE_API') {
+			Foreach ($User in $Handle) {
+				Write-Debug -Message "Querying for user: $User"
+				Invoke-RestMethod -Uri "https://$ComputerName/api/v3/users/$User" -Headers $Header -Method GET -Authentication Basic -Credential $Credential -SkipCertificateCheck
+			}
+		}
+		Else {
+			Foreach ($User in $Handle) {
+				Write-Debug -Message "Querying for user: $User"
+				Invoke-RestMethod -Uri "$BaseUrl/users/$User" -Method GET -Headers $Header -Authentication Basic -Credential $Credential -SkipCertificateCheck
+			}
 		}
 	}
 	End {
-		Write-Debug -Message 'Exiting Function: Get-GHEUser'
+		Write-Debug -Message 'Exiting Function: Get-GHUser'
 	}
 }
 function Remove-GHEUser {
