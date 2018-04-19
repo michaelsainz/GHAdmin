@@ -859,14 +859,14 @@ function New-GHERepo {
 
 	}
 }
-function Get-GHERepo {
+function Get-GHRepo {
 	<#
 	.SYNOPSIS
 		Get information on a repository
 	.DESCRIPTION
 		This cmdlet retrieves information about a repository
 	.EXAMPLE
-		PS ~/ Get-GHERepo -ComputerName myGHEInstance.myhost.com -Credential (Get-Credential) -Owner MonaLisa -Name MyNewRepo
+		PS ~/ Get-GHRepo -ComputerName myGHEInstance.myhost.com -Credential (Get-Credential) -Owner MonaLisa -Name MyNewRepo
 		This command connects to the myGHEInstance.myhost.com instance and prompts for credentials, which then authenticates you and retrieves information about the repo MyNewRepo.
 	.INPUTS
 		None
@@ -879,7 +879,7 @@ function Get-GHERepo {
 	[CmdletBinding()]
 	Param(
 		# URL of the API end point
-		[Parameter(Mandatory = $true)]
+		[Parameter(Mandatory = $false, ParameterSetName='GHE_API')]
 		[String]$ComputerName,
 
 		# Credential object for authentication against the GHE API
@@ -892,24 +892,49 @@ function Get-GHERepo {
 
 		# Name of the repository
 		[Parameter(Mandatory = $true)]
-		[String[]]$Name
+		[String[]]$Name,
+
+		# Custom API Version Header
+		[Parameter(Mandatory = $false)]
+		[String]$APIVersionHeader = 'application/vnd.github.v3+json',
+
+		# One-Time Passcode for two-factor authentication
+		[Parameter(Mandatory=$false)]
+		[String]$OneTimePasscode
 	)
 	Begin {
-		Write-Debug -Message "Entered function: Get-GHERepo"
+		Write-Debug -Message "Entered function: Get-GHRepo"
+
+		If ($PSCmdlet.ParameterSetName -eq 'GHE_API') {
+			Write-Debug -Message 'GHE_API Parameter Set'
+			$BaseUrl = "https://$ComputerName/api/v3"
+			Write-Debug -Message "BaseUrl is: $BaseUrl"
+		}
+		Else {
+			Write-Debug -Message 'Default Parameter Set (github.com API)'
+			$BaseUrl = 'https://api.github.com'
+			Write-Debug -Message "BaseUrl is: $BaseUrl"
+		}
+
+		$Header = @{
+			"Accept" = "$APIVersionHeader"
+		}
+		If ($OneTimePasscode) {
+			$Header.Add('X-GitHub-OTP',$OneTimePasscode)
+		}
 	}
 	Process {
 		Foreach ($Repo in $Name) {
 			Write-Debug -Message "Querying repository: $Repo"
-			$QualifiedUrl = "https://$ComputerName/api/v3/repos/$Owner/$Repo"
 
-			$Result = Invoke-RestMethod -Uri $QualifiedUrl -Method GET -Authentication Basic -Credential $Credential -SkipCertificateCheck
+			$Result = Invoke-RestMethod -Uri "$BaseUrl/repos/$Owner/$Repo" -Headers $Header -Method GET -Authentication Basic -Credential $Credential -SkipCertificateCheck
 			Write-Debug -Message "Result of REST request for the querying the repo: $(Out-String -InputObject $Result)"
 
 			Write-Output -InputObject $Result
 		}
 	}
 	End {
-		Write-Debug -Message "Exited function: Get-GHERepo"
+		Write-Debug -Message "Exited function: Get-GHRepo"
 	}
 }
 function Remove-GHERepo {
