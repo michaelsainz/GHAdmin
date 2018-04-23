@@ -876,30 +876,46 @@ function Get-GHRepo {
 	.NOTES
 		None
 	#>
-	[CmdletBinding()]
+	[CmdletBinding(DefaultParameterSetName='DotCom_API')]
 	Param(
 		# URL of the API end point
 		[Parameter(Mandatory = $false, ParameterSetName='GHE_API')]
 		[String]$ComputerName,
 
 		# Credential object for authentication against the GHE API
-		[Parameter(Mandatory = $true)]
+		[Parameter(Mandatory = $false, ParameterSetName='DotCom_API')]
+		[Parameter(Mandatory = $true, ParameterSetName='Auth_Basic')]
+		[Parameter(Mandatory = $false, ParameterSetName='GHE_API')]
 		[PSCredential]$Credential,
 
+		# Personal Access Token to authenticate against GitHub.com
+		[Parameter(Mandatory = $false, ParameterSetName='DotCom_API')]
+		[Parameter(Mandatory = $true, ParameterSetName='Auth_PAT')]
+		[Parameter(Mandatory = $false, ParameterSetName='GHE_API')]
+		[Alias('PAT')]
+		[String]$GHPersonalAccessToken,
+
 		# Username/login for the user/organization
-		[Parameter(Mandatory = $true)]
+		[Parameter(Mandatory = $true, ParameterSetName='DotCom_API')]
+		[Parameter(Mandatory = $true, ParameterSetName='Auth_PAT')]
+		[Parameter(Mandatory = $true, ParameterSetName='GHE_API')]
 		[String]$Owner,
 
 		# Name of the repository
-		[Parameter(Mandatory = $true)]
+		[Parameter(Mandatory = $true, ParameterSetName='DotCom_API')]
+		[Parameter(Mandatory = $true, ParameterSetName='Auth_PAT')]
+		[Parameter(Mandatory = $true, ParameterSetName='GHE_API')]
 		[String[]]$Name,
 
 		# Custom API Version Header
-		[Parameter(Mandatory = $false)]
+		[Parameter(Mandatory = $false, ParameterSetName='DotCom_API')]
+		[Parameter(Mandatory = $false, ParameterSetName='Auth_PAT')]
+		[Parameter(Mandatory = $false, ParameterSetName='GHE_API')]
 		[String]$APIVersionHeader = 'application/vnd.github.v3+json',
 
 		# One-Time Passcode for two-factor authentication
-		[Parameter(Mandatory=$false)]
+		[Parameter(Mandatory = $false, ParameterSetName='DotCom_API')]
+		[Parameter(Mandatory=$false, ParameterSetName='Auth_Basic')]
 		[String]$OneTimePasscode
 	)
 	Begin {
@@ -919,18 +935,44 @@ function Get-GHRepo {
 		$Header = @{
 			"Accept" = "$APIVersionHeader"
 		}
+		If ($GHPersonalAccessToken) {
+			$Header.Add('Authorization',$GHPersonalAccessToken)
+		}
+
 		If ($OneTimePasscode) {
 			$Header.Add('X-GitHub-OTP',$OneTimePasscode)
 		}
+
+		Write-Debug -Message "Current value of Headers is: $(Out-String -InputObject $Header)"
 	}
 	Process {
 		Foreach ($Repo in $Name) {
-			Write-Debug -Message "Querying repository: $Repo"
-
-			$Result = Invoke-RestMethod -Uri "$BaseUrl/repos/$Owner/$Repo" -Headers $Header -Method GET -Authentication Basic -Credential $Credential -SkipCertificateCheck
-			Write-Debug -Message "Result of REST request for the querying the repo: $(Out-String -InputObject $Result)"
-
-			Write-Output -InputObject $Result
+			Write-Debug -Message "Current ParameterSet: $($PSCmdlet.ParameterSetName)"
+			If ($PSCmdlet.ParameterSetName -eq 'DotCom_API') {
+				If ($Credential) {
+					Write-Debug -Message "Querying repository using Basic Authentication: $Repo"
+					$Result = Invoke-RestMethod -Uri "$BaseUrl/repos/$Owner/$Repo" -Headers $Header -Method GET -Authentication Basic -Credential $Credential
+					Write-Output -InputObject $Result
+				}
+				ElseIf ($GHPersonalAccessToken) {
+					Write-Debug -Message "Querying repository using a PAT: $Repo"
+					$Result = Invoke-RestMethod -Uri "$BaseUrl/repos/$Owner/$Repo" -Headers $Header -Method GET
+					Write-Output -InputObject $Result
+				}
+			}
+			ElseIf ($PSCmdlet.ParameterSetName -eq 'GHE_API') {
+				If ($Credential) {
+					Write-Debug -Message "Querying repository: $Repo"
+					$Result = Invoke-RestMethod -Uri "$BaseUrl/repos/$Owner/$Repo" -Headers $Header -Method GET -Authentication Basic -Credential $Credential -SkipCertificateCheck
+					Write-Output -InputObject $Result
+				}
+				ElseIf ($GHPersonalAccessToken) {
+					Write-Debug -Message "Adding the PAT to the header"
+					Write-Debug -Message "Querying repository: $Repo"
+					$Result = Invoke-RestMethod -Uri "$BaseUrl/repos/$Owner/$Repo" -Headers $Header -Method GET -SkipCertificateCheck
+					Write-Output -InputObject $Result
+				}
+			}
 		}
 	}
 	End {
