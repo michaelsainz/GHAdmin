@@ -140,14 +140,14 @@ function New-GHEOrganization {
 		Write-Debug -Message 'Exiting Function: New-GHEOrganization'
 	}
 }
-function Get-GHEOrganization {
+function Get-GHOrganization {
 	<#
 	.SYNOPSIS
 		Get information about an Organization
 	.DESCRIPTION
 		This cmdlet retrieves information about the specified Organization and returns JSON
 	.EXAMPLE
-		PS ~/ Get-GHEOrganization -ComputerName myGHEInstance.myhost.com -Credential (Get-Credential) -Handle 'NCC'
+		PS ~/ Get-GHOrganization -ComputerName myGHEInstance.myhost.com -Credential (Get-Credential) -Handle 'NCC'
 		This command connects to the myGHEInstance.myhost.com instance and prompts for credentials, which authenticates you and then retrieves the NCC Organization which is then returned as JSON data.
 	.INPUTS
 		System.String
@@ -161,7 +161,7 @@ function Get-GHEOrganization {
 	[CmdletBinding()]
 	Param(
 		# URL of the API end point
-		[Parameter(Mandatory = $true)]
+		[Parameter(Mandatory = $false, ParameterSetName='GHE_API')]
 		[String]$ComputerName,
 
 		# Credential object for authentication against the GHE API
@@ -170,19 +170,53 @@ function Get-GHEOrganization {
 
 		# User/handle of the organization
 		[Parameter(Mandatory = $true)]
-		[String[]]$Handle
+		[String[]]$Handle,
+
+		# Custom API Version Header
+		[Parameter(Mandatory = $false)]
+		[String]$APIVersionHeader = 'application/vnd.github.v3+json',
+
+		# One-Time Passcode for two-factor authentication
+		[Parameter(Mandatory=$false)]
+		[String]$OneTimePasscode
 	)
 	Begin {
-		Write-Debug -Message 'Entered Function: Get-GHEOrganization'
+		Write-Debug -Message 'Entered Function: Get-GHOrganization'
+
+		If ($PSCmdlet.ParameterSetName -eq 'GHE_API') {
+			Write-Debug -Message 'GHE_API Parameter Set'
+			$BaseUrl = "https://$ComputerName/api/v3"
+			Write-Debug -Message "BaseUrl is: $BaseUrl"
+		}
+		Else {
+			Write-Debug -Message 'Default Parameter Set (github.com API)'
+			$BaseUrl = 'https://api.github.com'
+			Write-Debug -Message "BaseUrl is: $BaseUrl"
+		}
+
+		$Header = @{
+			"Accept" = "$APIVersionHeader"
+		}
+		If ($OneTimePasscode) {
+			$Header.Add('X-GitHub-OTP',$OneTimePasscode)
+		}
 	}
 	Process {
-		Foreach ($OrgName in $Handle) {
-			Write-Debug -Message "Querying for organization: $OrgName"
-			Invoke-RestMethod -Uri "https://$ComputerName/api/v3/orgs/$OrgName" -Method GET -Authentication Basic -Credential $Credential -SkipCertificateCheck
+		If ($PSCmdlet.ParameterSetName -eq 'GHE_API') {
+			Foreach ($OrgName in $Handle) {
+					Write-Debug -Message "Querying for organization: $OrgName"
+					Invoke-RestMethod -Uri "$BaseUrl/orgs/$OrgName" -Method GET -Headers $Header -Authentication Basic -Credential $Credential -SkipCertificateCheck
+			}
+		}
+		Else {
+			Foreach ($OrgName in $Handle) {
+				Write-Debug -Message "Querying for organization: $OrgName"
+				Invoke-RestMethod -Uri "$BaseUrl/orgs/$OrgName" -Method GET -Headers $Header -Authentication Basic -Credential $Credential -SkipCertificateCheck
+			}
 		}
 	}
 	End {
-		Write-Debug -Message 'Exited Function: Get-GHEOrganization'
+		Write-Debug -Message 'Exited Function: Get-GHOrganization'
 	}
 }
 function New-GHEUser {
@@ -246,14 +280,14 @@ function New-GHEUser {
 		Write-Debug -Message 'Exiting Function: Create-GHEUser'
 	}
 }
-function Get-GHEUser {
+function Get-GHUser {
 	<#
 	.SYNOPSIS
 		Get information on a user account
 	.DESCRIPTION
 		This cmdlet retrieves information on a GitHub User account
 	.EXAMPLE
-		PS ~/ Get-GHEUser -ComputerName myGHEInstance.myhost.com -Credential (Get-Credential) -Handle 'MonaLisa'
+		PS ~/ Get-GHUser -ComputerName myGHEInstance.myhost.com -Credential (Get-Credential) -Handle 'MonaLisa'
 		This command connects to the myGHEInstance.myhost.com instance and prompts for credentials, which then authenticates you and then retrieves information on the account MonaLisa
 	.INPUTS
 		None
@@ -266,7 +300,7 @@ function Get-GHEUser {
 	[CmdletBinding()]
 	Param(
 		# URL of the API end point
-		[Parameter(Mandatory = $true)]
+		[Parameter(Mandatory = $false, ParameterSetName='GHE_API')]
 		[String]$ComputerName,
 
 		# Username/login of the user
@@ -275,19 +309,53 @@ function Get-GHEUser {
 
 		# Personal Access Token for authentication against the GHE API
 		[Parameter(Mandatory = $true)]
-		[PSCredential]$Credential
+		[PSCredential]$Credential,
+
+		# One-Time Passcode for two-factor authentication
+		[Parameter(Mandatory=$false)]
+		[String]$OneTimePasscode,
+
+		# Custom API Version Header
+		[Parameter(Mandatory = $false)]
+		[String]$APIVersionHeader = 'application/vnd.github.v3+json'
 	)
 	Begin {
-		Write-Debug -Message 'Entered Function: Get-GHEUser'
+		Write-Debug -Message 'Entered Function: Get-GHUser'
+
+		If ($PSCmdlet.ParameterSetName -eq 'GHE_API') {
+			Write-Debug -Message 'GHE_API Parameter Set'
+			$BaseUrl = "https://$ComputerName/api/v3"
+			Write-Debug -Message "BaseUrl is: $BaseUrl"
+		}
+		Else {
+			Write-Debug -Message 'Default Parameter Set (github.com API)'
+			$BaseUrl = 'https://api.github.com'
+			Write-Debug -Message "BaseUrl is: $BaseUrl"
+		}
+
+		$Header = @{
+			"Accept" = "$APIVersionHeader"
+		}
+		If ($OneTimePasscode) {
+			$Header.Add('X-GitHub-OTP',$OneTimePasscode)
+		}
 	}
 	Process {
-		Foreach ($User in $Handle) {
-			Write-Debug -Message "Querying for user: $User"
-			Invoke-RestMethod -Uri "https://$ComputerName/api/v3/users/$User" -Method GET -Authentication Basic -Credential $Credential -SkipCertificateCheck
+		If ($PSCmdlet.ParameterSetName -eq 'GHE_API') {
+			Foreach ($User in $Handle) {
+				Write-Debug -Message "Querying for user: $User"
+				Invoke-RestMethod -Uri "https://$ComputerName/api/v3/users/$User" -Headers $Header -Method GET -Authentication Basic -Credential $Credential -SkipCertificateCheck
+			}
+		}
+		Else {
+			Foreach ($User in $Handle) {
+				Write-Debug -Message "Querying for user: $User"
+				Invoke-RestMethod -Uri "$BaseUrl/users/$User" -Method GET -Headers $Header -Authentication Basic -Credential $Credential -SkipCertificateCheck
+			}
 		}
 	}
 	End {
-		Write-Debug -Message 'Exiting Function: Get-GHEUser'
+		Write-Debug -Message 'Exiting Function: Get-GHUser'
 	}
 }
 function Remove-GHEUser {
@@ -791,14 +859,14 @@ function New-GHERepo {
 
 	}
 }
-function Get-GHERepo {
+function Get-GHRepo {
 	<#
 	.SYNOPSIS
 		Get information on a repository
 	.DESCRIPTION
 		This cmdlet retrieves information about a repository
 	.EXAMPLE
-		PS ~/ Get-GHERepo -ComputerName myGHEInstance.myhost.com -Credential (Get-Credential) -Owner MonaLisa -Name MyNewRepo
+		PS ~/ Get-GHRepo -ComputerName myGHEInstance.myhost.com -Credential (Get-Credential) -Owner MonaLisa -Name MyNewRepo
 		This command connects to the myGHEInstance.myhost.com instance and prompts for credentials, which then authenticates you and retrieves information about the repo MyNewRepo.
 	.INPUTS
 		None
@@ -808,40 +876,107 @@ function Get-GHERepo {
 	.NOTES
 		None
 	#>
-	[CmdletBinding()]
+	[CmdletBinding(DefaultParameterSetName='DotCom_API')]
 	Param(
 		# URL of the API end point
-		[Parameter(Mandatory = $true)]
+		[Parameter(Mandatory = $false, ParameterSetName='GHE_API')]
 		[String]$ComputerName,
 
 		# Credential object for authentication against the GHE API
-		[Parameter(Mandatory = $true)]
+		[Parameter(Mandatory = $false, ParameterSetName='DotCom_API')]
+		[Parameter(Mandatory = $true, ParameterSetName='Auth_Basic')]
+		[Parameter(Mandatory = $false, ParameterSetName='GHE_API')]
 		[PSCredential]$Credential,
 
+		# Personal Access Token to authenticate against GitHub.com
+		[Parameter(Mandatory = $false, ParameterSetName='DotCom_API')]
+		[Parameter(Mandatory = $true, ParameterSetName='Auth_PAT')]
+		[Parameter(Mandatory = $false, ParameterSetName='GHE_API')]
+		[Alias('PAT')]
+		[String]$GHPersonalAccessToken,
+
 		# Username/login for the user/organization
-		[Parameter(Mandatory = $true)]
+		[Parameter(Mandatory = $true, ParameterSetName='DotCom_API')]
+		[Parameter(Mandatory = $true, ParameterSetName='Auth_PAT')]
+		[Parameter(Mandatory = $true, ParameterSetName='GHE_API')]
 		[String]$Owner,
 
 		# Name of the repository
-		[Parameter(Mandatory = $true)]
-		[String[]]$Name
+		[Parameter(Mandatory = $true, ParameterSetName='DotCom_API')]
+		[Parameter(Mandatory = $true, ParameterSetName='Auth_PAT')]
+		[Parameter(Mandatory = $true, ParameterSetName='GHE_API')]
+		[String[]]$Name,
+
+		# Custom API Version Header
+		[Parameter(Mandatory = $false, ParameterSetName='DotCom_API')]
+		[Parameter(Mandatory = $false, ParameterSetName='Auth_PAT')]
+		[Parameter(Mandatory = $false, ParameterSetName='GHE_API')]
+		[String]$APIVersionHeader = 'application/vnd.github.v3+json',
+
+		# One-Time Passcode for two-factor authentication
+		[Parameter(Mandatory = $false, ParameterSetName='DotCom_API')]
+		[Parameter(Mandatory=$false, ParameterSetName='Auth_Basic')]
+		[String]$OneTimePasscode
 	)
 	Begin {
-		Write-Debug -Message "Entered function: Get-GHERepo"
+		Write-Debug -Message "Entered function: Get-GHRepo"
+
+		If ($PSCmdlet.ParameterSetName -eq 'GHE_API') {
+			Write-Debug -Message 'GHE_API Parameter Set'
+			$BaseUrl = "https://$ComputerName/api/v3"
+			Write-Debug -Message "BaseUrl is: $BaseUrl"
+		}
+		Else {
+			Write-Debug -Message 'Default Parameter Set (github.com API)'
+			$BaseUrl = 'https://api.github.com'
+			Write-Debug -Message "BaseUrl is: $BaseUrl"
+		}
+
+		$Header = @{
+			"Accept" = "$APIVersionHeader"
+		}
+		If ($GHPersonalAccessToken) {
+			$Header.Add('Authorization',$GHPersonalAccessToken)
+		}
+
+		If ($OneTimePasscode) {
+			$Header.Add('X-GitHub-OTP',$OneTimePasscode)
+		}
+
+		Write-Debug -Message "Current value of Headers is: $(Out-String -InputObject $Header)"
 	}
 	Process {
 		Foreach ($Repo in $Name) {
-			Write-Debug -Message "Querying repository: $Repo"
-			$QualifiedUrl = "https://$ComputerName/api/v3/repos/$Owner/$Repo"
-
-			$Result = Invoke-RestMethod -Uri $QualifiedUrl -Method GET -Authentication Basic -Credential $Credential -SkipCertificateCheck
-			Write-Debug -Message "Result of REST request for the querying the repo: $(Out-String -InputObject $Result)"
-
-			Write-Output -InputObject $Result
+			Write-Debug -Message "Current ParameterSet: $($PSCmdlet.ParameterSetName)"
+			If ($PSCmdlet.ParameterSetName -eq 'DotCom_API') {
+				If ($Credential) {
+					Write-Debug -Message "Querying repository using Basic Authentication: $Repo"
+					$Result = Invoke-RestMethod -Uri "$BaseUrl/repos/$Owner/$Repo" -Headers $Header -Method GET -Authentication Basic -Credential $Credential
+					Write-Output -InputObject $Result
+				}
+				ElseIf ($GHPersonalAccessToken) {
+					Write-Debug -Message "Querying repository using a PAT: $Repo"
+					$Result = Invoke-RestMethod -Uri "$BaseUrl/repos/$Owner/$Repo" -Headers $Header -Method GET
+					Write-Output -InputObject $Result
+				}
+			}
+			ElseIf ($PSCmdlet.ParameterSetName -eq 'GHE_API') {
+				If ($Credential) {
+					Write-Debug -Message "Querying repository: $Repo"
+					$Result = Invoke-RestMethod -Uri "$BaseUrl/repos/$Owner/$Repo" -Headers $Header -Method GET -Authentication Basic -Credential $Credential -SkipCertificateCheck
+					Write-Output -InputObject $Result
+				}
+				ElseIf ($GHPersonalAccessToken) {
+					Write-Debug -Message "Adding the PAT to the header"
+					Write-Debug -Message "Querying repository: $Repo"
+					$Result = Invoke-RestMethod -Uri "$BaseUrl/repos/$Owner/$Repo" -Headers $Header -Method GET -SkipCertificateCheck
+					Write-Output -InputObject $Result
+				}
+			}
 		}
 	}
 	End {
-		Write-Debug -Message "Exited function: Get-GHERepo"
+		Write-Debug -Message "Exited function: Get-GHRepo"
 	}
 }
 function Remove-GHERepo {
@@ -1307,5 +1442,62 @@ function Get-GHEIssue {
 	}
 	End {
 		Write-Debug -Message 'Exited Function: Get-GHEIssue'
+	}
+}
+function Start-GHRepoMigration {
+	<#
+	.SYNOPSIS
+		Start a GitHub migration job
+	.DESCRIPTION
+		This cmdlet begins creating a migration job and archive of the specified repositories
+	.EXAMPLE
+		PS C:\> <example usage>
+		Explanation of what the example does
+	.INPUTS
+		Inputs (if any)
+	.OUTPUTS
+		Output (if any)
+	.NOTES
+		General notes
+	#>
+	[CmdletBinding()]
+	Param (
+		# The Personal Access Token with admin:org rights on github.com
+		[Parameter(Mandatory=$true)]
+		[Alias('GHPAT')]
+		[String]$GHPersonalAccessToken,
+
+		# Parameter help description
+		[Parameter(Mandatory=$false)]
+		[Switch]$LockRepositories = $false,
+
+		# The repositories to migrate to the GHE instance
+		[Parameter(Mandatory=$true)]
+		[String[]]$Repositories,
+
+		# Organization on Github.com
+		[Parameter(Mandatory=$true)]
+		[String]$GHOrganization
+	)
+	Begin {
+		$Headers = @{
+			'Authorization' = "token $GHPersonalAccessToken"
+			'Accept' = 'application/vnd.github.wyandotte-preview+json'
+		}
+		Write-Debug -Message "Header Body: $(Out-String -InputObject $Headers)"
+	}
+	Process {
+		$Body = @{
+			'lock_repositories' = $LockRepositories.ToBool()
+			'repositories' = $Repositories
+		}
+		$Body = ConvertTo-Json -InputObject $Body
+		Write-Debug -Message "Data Body: $(Out-String -InputObject $Body)"
+
+		Write-Debug -Message "Calling API: https://api.github.com/orgs/$GHOrganization/migrations"
+		Invoke-RestMethod -Uri "https://api.github.com/orgs/$GHOrganization/migrations" -Headers $Headers -Body $Body -Method POST
+	}
+	End {
+		Write-Debug -Message 'Exited Function: Start-GHRepoMigration'
 	}
 }
