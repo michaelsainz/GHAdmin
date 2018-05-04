@@ -895,12 +895,6 @@ function Get-GHRepo {
 		[Alias('PAT')]
 		[String]$GHPersonalAccessToken,
 
-		# Username/login for the user/organization
-		[Parameter(Mandatory = $true, ParameterSetName='DotCom_API')]
-		[Parameter(Mandatory = $true, ParameterSetName='Auth_PAT')]
-		[Parameter(Mandatory = $true, ParameterSetName='GHE_API')]
-		[String]$Owner,
-
 		# Name of the repository
 		[Parameter(Mandatory = $true, ParameterSetName='DotCom_API')]
 		[Parameter(Mandatory = $true, ParameterSetName='Auth_PAT')]
@@ -948,29 +942,31 @@ function Get-GHRepo {
 	Process {
 		Foreach ($Repo in $Name) {
 			Write-Debug -Message "Current ParameterSet: $($PSCmdlet.ParameterSetName)"
+			$RepoResolvedName = Resolve-GHRepoName -Repository $Repo
+			Write-Debug -Message "Split $Repo string to $($RepoResolvedName.Owner) & $($RepoResolvedName.Name)"
 			If ($PSCmdlet.ParameterSetName -eq 'DotCom_API') {
 				If ($Credential) {
 					Write-Debug -Message "Querying repository using Basic Authentication: $Repo"
-					$Result = Invoke-RestMethod -Uri "$BaseUrl/repos/$Owner/$Repo" -Headers $Header -Method GET -Authentication Basic -Credential $Credential
+					$Result = Invoke-RestMethod -Uri "$BaseUrl/repos/$($RepoResolvedName.Owner)/$($RepoResolvedName.Name)" -Headers $Header -Method GET -Authentication Basic -Credential $Credential
 					Write-Output -InputObject $Result
 				}
 				ElseIf ($GHPersonalAccessToken) {
 					Write-Debug -Message "Querying repository using a PAT: $Repo"
-					$Result = Invoke-RestMethod -Uri "$BaseUrl/repos/$Owner/$Repo" -Headers $Header -Method GET
+					$Result = Invoke-RestMethod -Uri "$BaseUrl/repos/$($RepoResolvedName.Owner)/$($RepoResolvedName.Name)" -Headers $Header -Method GET
 					Write-Output -InputObject $Result
 				}
 			}
 			ElseIf ($PSCmdlet.ParameterSetName -eq 'GHE_API') {
 				If ($Credential) {
 					Write-Debug -Message "Querying repository: $Repo"
-					$Result = Invoke-RestMethod -Uri "$BaseUrl/repos/$Owner/$Repo" -Headers $Header -Method GET -Authentication Basic -Credential $Credential -SkipCertificateCheck
+					$Result = Invoke-RestMethod -Uri "$BaseUrl/repos/$($RepoResolvedName.Owner)/$($RepoResolvedName.Name)" -Headers $Header -Method GET -Authentication Basic -Credential $Credential -SkipCertificateCheck
 					Write-Output -InputObject $Result
 				}
 				ElseIf ($GHPersonalAccessToken) {
 					Write-Debug -Message "Adding the PAT to the header"
 					Write-Debug -Message "Querying repository: $Repo"
-					$Result = Invoke-RestMethod -Uri "$BaseUrl/repos/$Owner/$Repo" -Headers $Header -Method GET -SkipCertificateCheck
-					Write-Output -InputObject $Result
+					$Result = Invoke-RestMethod -Uri "$BaseUrl/repos/$($RepoResolvedName.Owner)/$($RepoResolvedName.Name)" -Headers $Header -Method GET -SkipCertificateCheck
+					Write-Output -InputObject $Resutl
 				}
 			}
 		}
@@ -1473,11 +1469,7 @@ function Start-GHRepoMigration {
 
 		# The repositories to migrate to the GHE instance
 		[Parameter(Mandatory=$true)]
-		[String[]]$Repositories,
-
-		# Organization on Github.com
-		[Parameter(Mandatory=$true)]
-		[String]$GHOrganization
+		[String[]]$Repositories
 	)
 	Begin {
 		$Headers = @{
@@ -1485,6 +1477,7 @@ function Start-GHRepoMigration {
 			'Accept' = 'application/vnd.github.wyandotte-preview+json'
 		}
 		Write-Debug -Message "Header Body: $(Out-String -InputObject $Headers)"
+		$Org = Resolve-GHRepoName -Repository $Repositories[0]
 	}
 	Process {
 		$Body = @{
@@ -1494,8 +1487,8 @@ function Start-GHRepoMigration {
 		$Body = ConvertTo-Json -InputObject $Body
 		Write-Debug -Message "Data Body: $(Out-String -InputObject $Body)"
 
-		Write-Debug -Message "Calling API: https://api.github.com/orgs/$GHOrganization/migrations"
-		Invoke-RestMethod -Uri "https://api.github.com/orgs/$GHOrganization/migrations" -Headers $Headers -Body $Body -Method POST
+		Write-Debug -Message "Calling API: https://api.github.com/orgs/$($Org.Owner)/migrations"
+		Invoke-RestMethod -Uri "https://api.github.com/orgs/$($Org.Owner)/migrations" -Headers $Headers -Body $Body -Method POST
 	}
 	End {
 		Write-Debug -Message 'Exited Function: Start-GHRepoMigration'
