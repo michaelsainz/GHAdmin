@@ -2,7 +2,7 @@
 
 Welcome to the GHAdmin community!
 
-GHAdmin is a Powershell module design to make administration of both your GitHub Enterprise and GitHub.com a little easier. Of course you can use the GUI, but sometimes the CLI is better.
+GHAdmin is a Powershell module designed to make administration of both your GitHub Enterprise and GitHub.com a little easier. Of course you can use the GUI, but sometimes the CLI is better.
 
 There are a lot of features that we want to add including -
 
