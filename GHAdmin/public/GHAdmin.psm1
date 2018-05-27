@@ -1319,7 +1319,7 @@ function New-GHIssue {
 		None
 	#>
 	[CmdletBinding(DefaultParameterSetName='DotCom_API')]
-		Param(
+	Param(
 		# URL of the API end point
 		[Parameter(Mandatory = $false, ParameterSetName='GHE_API')]
 		[String]$ComputerName,
@@ -1348,6 +1348,7 @@ function New-GHIssue {
 		[Parameter(Mandatory = $false, ParameterSetName='GHE_API')]
 		[String]$APIVersionHeader = 'application/vnd.github.v3+json',
 
+		# The fully qualified repository name
 		[Parameter(Mandatory = $true, ParameterSetName='DotCom_API')]
 		[Parameter(Mandatory = $true, ParameterSetName='Auth_PAT')]
 		[Parameter(Mandatory = $true, ParameterSetName='GHE_API')]
@@ -1462,44 +1463,111 @@ function Get-GHIssue {
 	.NOTES
 		None
 	#>
-	[CmdletBinding()]
+	[CmdletBinding(DefaultParameterSetName='DotCom_API')]
 	Param(
 		# URL of the API end point
-		[Parameter(Mandatory = $true)]
+		[Parameter(Mandatory = $false, ParameterSetName='GHE_API')]
 		[String]$ComputerName,
 
-		# Credential object for authentication against the GHE API
-		[Parameter(Mandatory = $true)]
+		# Credential object for authentication against the GH API
+		[Parameter(Mandatory = $false, ParameterSetName='DotCom_API')]
+		[Parameter(Mandatory = $true, ParameterSetName='Auth_Basic')]
+		[Parameter(Mandatory = $false, ParameterSetName='GHE_API')]
 		[PSCredential]$Credential,
 
-		# Owner of the repository to retrieve an Issue
-		[Parameter(Mandatory=$true)]
-		[String]$Owner,
+		# Personal Access Token to authenticate against GitHub.com
+		[Parameter(Mandatory = $false, ParameterSetName='DotCom_API')]
+		[Parameter(Mandatory = $true, ParameterSetName='Auth_PAT')]
+		[Parameter(Mandatory = $false, ParameterSetName='GHE_API')]
+		[Alias('PAT')]
+		[String]$PersonalAccessToken,
 
-		# Name of the repository
-		[Parameter(Mandatory = $true)]
-		[String]$Repo,
+		# One-Time Passcode for two-factor authentication
+		[Parameter(Mandatory = $false, ParameterSetName='DotCom_API')]
+		[Parameter(Mandatory=$false, ParameterSetName='Auth_Basic')]
+		[String]$OneTimePasscode,
+
+		# Custom API Version Header
+		[Parameter(Mandatory = $false, ParameterSetName='DotCom_API')]
+		[Parameter(Mandatory = $false, ParameterSetName='Auth_PAT')]
+		[Parameter(Mandatory = $false, ParameterSetName='GHE_API')]
+		[String]$APIVersionHeader = 'application/vnd.github.symmetra-preview+json',
+
+		# The fully qualified repository name
+		[Parameter(Mandatory = $true, ParameterSetName='DotCom_API')]
+		[Parameter(Mandatory = $true, ParameterSetName='Auth_PAT')]
+		[Parameter(Mandatory = $true, ParameterSetName='GHE_API')]
+		[String]$RepoName,
 
 		# ID of the issue to retrieve
 		[Parameter(Mandatory = $true)]
 		[String[]]$Id
 	)
 	Begin {
-		Write-Debug -Message 'Entered Function: Get-GHEIssue'
+		Write-Debug -Message 'Entered Function: Get-GHIssue'
+
+		If ($PSCmdlet.ParameterSetName -eq 'GHE_API') {
+			Write-Debug -Message 'GHE_API Parameter Set'
+			$BaseUrl = "https://$ComputerName/api/v3"
+			Write-Debug -Message "BaseUrl is: $BaseUrl"
+		}
+		Else {
+			Write-Debug -Message 'Default Parameter Set (github.com API)'
+			$BaseUrl = 'https://api.github.com'
+			Write-Debug -Message "BaseUrl is: $BaseUrl"
+		}
+
+		$Header = @{
+			"Accept" = "$APIVersionHeader"
+		}
+		If ($PersonalAccessToken) {
+			$Header.Add('Authorization',"token $PersonalAccessToken")
+		}
+
+		If ($OneTimePasscode) {
+			$Header.Add('X-GitHub-OTP',$OneTimePasscode)
+		}
+
+		Write-Debug -Message "Current value of Headers is: $(Out-String -InputObject $Header)"
 	}
 	Process {
 		Foreach ($Issue in $Id) {
-			$QualifiedUrl = "https://$ComputerName/api/v3/repos/$Owner/$Repo/issues/$Issue"
-			Write-Debug -Message "Qualified URL is: $QualifiedUrl"
+			Write-Debug -Message "Current ParameterSet: $($PSCmdlet.ParameterSetName)"
+			$RepoResolvedName = Resolve-GHRepoName -Repository $RepoName
+			Write-Debug -Message "Split $RepoName string to $($RepoResolvedName.Owner) & $($RepoResolvedName.Name)"
 
-			$WebResult = Invoke-RestMethod -Uri $QualifiedUrl -Method GET -Authentication Basic -Credential $Credential -SkipCertificateCheck
-			Write-Debug -Message "Result of REST request for the querying the repo: $(Out-String -InputObject $WebResult)"
-
-			Write-Output -InputObject $WebResult
+			If ($PSCmdlet.ParameterSetName -eq 'DotCom_API') {
+				If ($Credential) {
+					Write-Debug -Message "Retrieving issue using Basic Authentication to endpoint: $BaseUrl/repos/$($RepoResolvedName.Owner)/$($RepoResolvedName.Name)/issues/$Issue"
+					$Result = Invoke-RestMethod -Uri "$BaseUrl/repos/$($RepoResolvedName.Owner)/$($RepoResolvedName.Name)/issues/$Issue" -Headers $Header -Method GET -Authentication Basic -Credential $Credential
+					Write-Debug -Message "Result of REST request for issue: $(Out-String -InputObject $Result)"
+					Write-Output -InputObject $Result
+				}
+				ElseIf ($PersonalAccessToken) {
+					Write-Debug -Message "Retrieving issue using a PAT to endpoint: $BaseUrl/repos/$($RepoResolvedName.Owner)/$($RepoResolvedName.Name)/issues/$Issue"
+					$Result = Invoke-RestMethod -Uri "$BaseUrl/repos/$($RepoResolvedName.Owner)/$($RepoResolvedName.Name)/issues/$Issue" -Headers $Header -Method GET
+					Write-Debug -Message "Result of REST request for issue: $(Out-String -InputObject $Result)"
+					Write-Output -InputObject $Result
+				}
+			}
+			If ($PSCmdlet.ParameterSetName -eq 'GHE_API') {
+				If ($Credential) {
+					Write-Debug -Message "Retrieving issue using Basic authentication to endpoint: $BaseUrl/repos/$($RepoResolvedName.Owner)/$($RepoResolvedName.Name)/issues/$Issue"
+					$Result = Invoke-RestMethod -Uri "$BaseUrl/repos/$($RepoResolvedName.Owner)/$($RepoResolvedName.Name)/issues/$Issue" -Headers $Header -Method GET -Authentication Basic -Credential $Credential -SkipCertificateCheck
+					Write-Debug -Message "Result of REST request for issue: $(Out-String -InputObject $Result)"
+					Write-Output -InputObject $Result
+				}
+				ElseIf ($PersonalAccessToken) {
+					Write-Debug -Message "Retrieving issue using a PAT to endpoint: $BaseUrl/repos/$($RepoResolvedName.Owner)/$($RepoResolvedName.Name)/issues/$Issue"
+					$Result = Invoke-RestMethod -Uri "$BaseUrl/repos/$($RepoResolvedName.Owner)/$($RepoResolvedName.Name)/issues/$Issue" -Headers $Header -Method GET -SkipCertificateCheck
+					Write-Debug -Message "Result of REST request for issue: $(Out-String -InputObject $Result)"
+					Write-Output -InputObject $Result
+				}
+			}
 		}
 	}
 	End {
-		Write-Debug -Message 'Exited Function: Get-GHEIssue'
+		Write-Debug -Message 'Exited Function: Get-GHIssue'
 	}
 }
 function Start-GHRepoMigration {
