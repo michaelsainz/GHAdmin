@@ -1431,12 +1431,6 @@ function Add-GHTeamMembership {
 
 		$ResolvedTeamName = Resolve-GHRepoName -Repository $Team
 		Write-Debug -Message "Split $Team string to $($ResolvedTeamName.Owner) & $($ResolvedTeamName.Name)"
-
-		If ($PSCmdlet.ParameterSetName -eq 'DotCom_API') {
-			If ($Credential) {
-				Get-GHETeam -Organization $ResolvedTeamName.Owner -Handle $ResolvedTeamName.Name -Credential $Credential
-			}
-		}
 	}
 	Process {
 		Foreach ($Name in $User) {
@@ -1452,26 +1446,38 @@ function Add-GHTeamMembership {
 
 			If ($PSCmdlet.ParameterSetName -eq 'DotCom_API') {
 				If ($Credential) {
-					Write-Debug -Message "Adding user using Basic Authentication to endpoint: $BaseUrl/teams/$Team/memberships/$Name"
+					Write-Debug -Message "Querying team object: $Team"
+					$TeamObject = Get-GHTeam -ComputerName $ComputerName -Credential $Credential -Name $Team
+
+					Write-Debug -Message "Adding user using Basic Authentication using endpoint: $BaseUrl/teams/$Team/memberships/$Name"
 					$Result = Invoke-RestMethod -Uri "$BaseUrl/teams/$Team/memberships/$Name" -Headers $Header -Body $JSONData -Method POST -Authentication Basic -Credential $Credential
 					Write-Debug -Message "Result of REST request: $(Out-String -InputObject $Result)"
 				}
 				ElseIf ($PersonalAccessToken) {
-					Write-Debug -Message "Adding user using a PAT to endpoint: $BaseUrl/teams/$Team/memberships/$Name"
+					Write-Debug -Message "Querying team object: $Team"
+					$TeamObject = Get-GHTeam -ComputerName $ComputerName -PersonalAccessToken $PersonalAccessToken -Name $Team
+
+					Write-Debug -Message "Adding user using a PAT using endpoint: $BaseUrl/teams/$Team/memberships/$Name"
 					$Result = Invoke-RestMethod -Uri "$BaseUrl/teams/$Team/memberships/$Name" -Headers $Header -Body $JSONData -Method POST
 					Write-Debug -Message "Result of REST request: $(Out-String -InputObject $Result)"
 				}
 			}
 			If ($PSCmdlet.ParameterSetName -eq 'GHE_API') {
 				If ($Credential) {
-					Write-Debug -Message "Adding user using Basic authentication to endpoint: $BaseUrl/teams/$Team/memberships/$Name"
-					$Result = Invoke-RestMethod -Uri "$BaseUrl/teams/$Team/memberships/$Name" -Headers $Header -Body $JSONData -Method POST -Authentication Basic -Credential $Credential -SkipCertificateCheck
-					Write-Debug -Message "Result of REST request: $(Out-String -InputObject $Result)"
+					Write-Debug -Message "Querying team object: $Team"
+					$TeamObject = Get-GHTeam -ComputerName $ComputerName -Credential $Credential -Name $Team
+
+					Write-Debug -Message "Adding user to team using endpoint: $BaseUrl/teams/$($TeamObject.id)/memberships/$Name"
+					$Result = Invoke-RestMethod -Method PUT -Uri "$BaseUrl/teams/$($TeamObject.id)/memberships/$Name" -Headers $Header -Body $JSONData -Authentication Basic -Credential $Credential -SkipCertificateCheck
+					Write-Output -InputObject $Result
 				}
 				ElseIf ($PersonalAccessToken) {
-					Write-Debug -Message "Adding user using a PAT to endpoint: $BaseUrl/teams/$Team/memberships/$Name"
-					$Result = Invoke-RestMethod -Uri "$BaseUrl/teams/$Team/memberships/$Name" -Headers $Header -Body $JSONData -Method POST -SkipCertificateCheck
-					Write-Debug -Message "Result of REST request: $(Out-String -InputObject $Result)"
+					Write-Debug -Message "Querying team object: $Team"
+					$TeamObject = Get-GHTeam -ComputerName $ComputerName -PersonalAccessToken $PersonalAccessToken -Name $Team
+
+					Write-Debug -Message "Adding user to team using endpoint: $BaseUrl/teams/$($TeamObject.id)/memberships/$Name"
+					$Result = Invoke-RestMethod -Method PUT -Uri "$BaseUrl/teams/$($TeamObject.id)/memberships/$Name" -Headers $Header -Body $JSONData -SkipCertificateCheck
+					Write-Output -InputObject $Result
 				}
 			}
 		}
