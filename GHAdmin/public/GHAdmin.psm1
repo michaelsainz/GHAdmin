@@ -1294,14 +1294,14 @@ function Add-GHEOrgMembership {
 		Write-Debug -Message 'Exiting function: Add-GHEOrgMembership'
 	}
 }
-function Remove-GHEOrgMembership {
+function Remove-GHOrgMembership {
 	<#
 	.SYNOPSIS
 		Remove a user to an organization
 	.DESCRIPTION
 		This cmdlet accepts a username/handle and removes it from the organization membership
 	.EXAMPLE
-		PS ~/ Remove-GHEOrgMembership -ComputerName myGHEInstance.myhost.com -Credential (Get-Credential) -Handle MonaLisa -Organization Development
+		PS ~/ Remove-GHOrgMembership -ComputerName myGHEInstance.myhost.com -Credential (Get-Credential) -Handle MonaLisa -Organization Development
 		This command connects to the myGHEInstance.myhost.com instance and prompts for credentials, which then authenticates you and then removes MonaLisa from the Development organization
 	.INPUTS
 		None
@@ -1311,37 +1311,103 @@ function Remove-GHEOrgMembership {
 	.NOTES
 		None
 	#>
-	[CmdletBinding()]
+	[CmdletBinding(DefaultParameterSetName='DotCom_API')]
 	Param(
 		# URL of the API end point
-		[Parameter(Mandatory = $true)]
+		[Parameter(Mandatory = $false, ParameterSetName='GHE_API')]
 		[String]$ComputerName,
 
 		# Credential object for authentication against the GHE API
-		[Parameter(Mandatory = $true)]
+		[Parameter(Mandatory = $false, ParameterSetName='DotCom_API')]
+		[Parameter(Mandatory = $true, ParameterSetName='Auth_Basic')]
+		[Parameter(Mandatory = $false, ParameterSetName='GHE_API')]
 		[PSCredential]$Credential,
 
-		# Name of the user to remove from an organization
+		# Personal Access Token to authenticate against GitHub.com
+		[Parameter(Mandatory = $false, ParameterSetName='DotCom_API')]
+		[Parameter(Mandatory = $true, ParameterSetName='Auth_PAT')]
+		[Parameter(Mandatory = $false, ParameterSetName='GHE_API')]
+		[Alias('PAT')]
+		[String]$PersonalAccessToken,
+
+		# One-Time Passcode for two-factor authentication
+		[Parameter(Mandatory = $false, ParameterSetName='DotCom_API')]
+		[Parameter(Mandatory=$false, ParameterSetName='Auth_Basic')]
+		[String]$OneTimePasscode,
+
+		# Custom API Version Header
+		[Parameter(Mandatory = $false, ParameterSetName='DotCom_API')]
+		[Parameter(Mandatory = $false, ParameterSetName='Auth_PAT')]
+		[Parameter(Mandatory = $false, ParameterSetName='GHE_API')]
+		[String]$APIVersionHeader = 'application/vnd.github.v3+json',
+
+		# Username/login for the user
 		[Parameter(Mandatory = $true)]
-		[String[]]$Name,
+		[String[]]$User,
 
 		# Name of the organization to remove users from
 		[Parameter(Mandatory = $true)]
+		[Alias("Org")]
 		[String]$Organization
 	)
 	Begin {
-		Write-Debug -Message 'Entered function: Remove-GHEOrgMembership'
+		Write-Debug -Message 'Entered function: Remove-GHOrgMembership'
+
+		If ($PSCmdlet.ParameterSetName -eq 'GHE_API') {
+			Write-Debug -Message 'GHE_API Parameter Set'
+			$BaseUrl = "https://$ComputerName/api/v3"
+			Write-Debug -Message "BaseUrl is: $BaseUrl"
+		}
+		Else {
+			Write-Debug -Message 'Default Parameter Set (github.com API)'
+			$BaseUrl = 'https://api.github.com'
+			Write-Debug -Message "BaseUrl is: $BaseUrl"
+		}
+
+		$Header = @{
+			"Accept" = "$APIVersionHeader"
+		}
+		If ($PersonalAccessToken) {
+			$Header.Add('Authorization',"token $PersonalAccessToken")
+		}
+
+		If ($OneTimePasscode) {
+			$Header.Add('X-GitHub-OTP',$OneTimePasscode)
+		}
+		Write-Debug -Message "Current value of Headers is: $(Out-String -InputObject $Header)"
 	}
 	Process {
-		Foreach ($User in $Name) {
-			Write-Debug -Message "Removing user: $User"
+		Foreach ($Name in $User) {
+			Write-Debug -Message "Current ParameterSet: $($PSCmdlet.ParameterSetName)"
 
-			$WebResult = Invoke-RestMethod -Uri "https://$ComputerName/api/v3/orgs/$Organization/memberships/$User" -Method DELETE -Authentication Basic -Credential $Cred -SkipCertificateCheck
-			Write-Debug -Message "Result of REST request for the removal of the repository: $(Out-String -InputObject $WebResult)"
+			If ($PSCmdlet.ParameterSetName -eq 'DotCom_API') {
+				If ($Credential) {
+					Write-Debug -Message "Removing user using Basic Authentication using endpoint: $BaseUrl/orgs/$Organization/memberships/$Name"
+					$Result = Invoke-RestMethod -Uri "$BaseUrl/orgs/$Organization/memberships/$Name" -Method DELETE -Headers $Header -Authentication Basic -Credential $Credential
+					Write-Debug -Message "Result of REST request: $(Out-String -InputObject $Result)"
+				}
+				ElseIf ($PersonalAccessToken) {
+					Write-Debug -Message "Removing user using PAT using endpoint: $BaseUrl/orgs/$Organization/memberships/$Name"
+					$Result = Invoke-RestMethod -Uri "$BaseUrl/orgs/$Organization/memberships/$Name" -Method DELETE -Headers $Header -Body $JSONData -Method POST
+					Write-Debug -Message "Result of REST request: $(Out-String -InputObject $Result)"
+				}
+			}
+			If ($PSCmdlet.ParameterSetName -eq 'GHE_API') {
+				If ($Credential) {
+					Write-Debug -Message "Removing user using Basic Authentication using endpoint: $BaseUrl/orgs/$Organization/memberships/$Name"
+					$Result = Invoke-RestMethod -Uri "$BaseUrl/orgs/$Organization/memberships/$Name" -Method DELETE -Headers $Header -Body $JSONData -Authentication Basic -Credential $Credential -SkipCertificateCheck
+					Write-Output -InputObject $Result
+				}
+				ElseIf ($PersonalAccessToken) {
+					Write-Debug -Message "Removing user using PAT using endpoint: $BaseUrl/orgs/$Organization/memberships/$Name"
+					$Result = Invoke-RestMethod -Uri "$BaseUrl/orgs/$Organization/memberships/$Name" -Method DELETE -Headers $Header -Body $JSONData -SkipCertificateCheck
+					Write-Output -InputObject $Result
+				}
+			}
 		}
 	}
 	End {
-		Write-Debug -Message 'Exiting Function: Remove-GHEOrgMembership'
+		Write-Debug -Message 'Exiting Function: Remove-GHOrgMembership'
 	}
 }
 function Add-GHTeamMembership {
@@ -1361,7 +1427,7 @@ function Add-GHTeamMembership {
 	.NOTES
 		None
 	#>
-	[CmdletBinding()]
+	[CmdletBinding(DefaultParameterSetName='DotCom_API')]
 	Param(
 		# URL of the API end point
 		[Parameter(Mandatory = $false, ParameterSetName='GHE_API')]
