@@ -236,34 +236,62 @@ function New-GHEUser {
 	.NOTES
 		None
 	#>
-	[CmdletBinding()]
+	[CmdletBinding(DefaultParameterSetName='Auth_Basic')]
 	Param(
 		# URL of the API end point
-		[Parameter(Mandatory = $true)]
+		[Parameter(Mandatory = $true, ParameterSetName='Auth_Basic')]
+		[Parameter(Mandatory = $true, ParameterSetName='Auth_PAT')]
 		[String]$ComputerName,
+
+		# Personal Access Token for authentication against the GHE API
+		[Parameter(Mandatory = $true, ParameterSetName='Auth_Basic')]
+		[PSCredential]$Credential,
+
+		# Personal Access Token to authenticate against GitHub.com
+		[Parameter(Mandatory = $true, ParameterSetName='Auth_PAT')]
+		[Alias('PAT')]
+		[String]$PersonalAccessToken,
+
+		# Custom API Version Header
+		[Parameter(Mandatory = $false, ParameterSetName='Auth_PAT')]
+		[String]$APIVersionHeader = 'application/vnd.github.v3+json',
+
+		# One-Time Passcode for two-factor authentication
+		[Parameter(Mandatory=$false, ParameterSetName='Auth_Basic')]
+		[String]$OneTimePasscode,
 
 		# Username/login of the user
 		[Parameter(Mandatory = $false)]
-		[String]$Handle,
+		[Alias('Handle')]
+		[String]$Name,
 
 		# Email address for the invite
 		[Parameter(Mandatory = $false)]
-		[String]$Email,
-
-		# Personal Access Token for authentication against the GHE API
-		[Parameter(Mandatory = $true)]
-		[PSCredential]$Credential
+		[Alias('Email')]
+		[String[]]$EmailAddress
 	)
 	Begin {
-		Write-Debug -Message 'Entered Function: Create-GHEUser'
+		Write-Debug -Message 'Entered Function: New-GHEUser'
+		Write-Debug -Message "$($PSCmdlet.ParameterSetName) Parameter Set"
+		$BaseUrl = "https://$ComputerName/api/v3"
+		Write-Debug -Message "BaseUrl is: $BaseUrl"
 
-		$QualifiedUrl = "https://$ComputerName/api/v3/admin/users"
-		Write-Debug -Message "Qualified URL is: $QualifiedUrl"
+		$Header = @{
+			"Accept" = "$APIVersionHeader"
+		}
+		If ($PersonalAccessToken) {
+			$Header.Add('Authorization',"token $PersonalAccessToken")
+		}
+
+		If ($OneTimePasscode) {
+			$Header.Add('X-GitHub-OTP',$OneTimePasscode)
+		}
+		Write-Debug -Message "Current value of Headers is: $(Out-String -InputObject $Header)"
 	}
 	Process {
-		Foreach ($User in $Handle) {
+		Foreach ($Email in $EmailAddress) {
 			$Body = @{
-				'login' = $User
+				'login' = $Name
 				'email' = $Email
 			}
 			Write-Debug -Message "Request Body: $(Out-String -InputObject $Body)"
@@ -271,13 +299,20 @@ function New-GHEUser {
 			$JSONData = ConvertTo-Json -InputObject $Body
 			Write-Debug -Message "JSON data: $JSONData"
 
-			Write-Debug -Message "Calling REST API"
-			$Result = Invoke-RestMethod -Method POST -Uri $QualifiedUrl -Body $JSONData -Authentication Basic -Credential $Credential -SkipCertificateCheck
-			Write-Debug -Message "Result of REST request for user ${User}: $(Out-String -InputObject $Result)"
+			If ($Credential) {
+				Write-Debug -Message "Creating new user using Basic Authentication: $Name"
+				$Result = Invoke-RestMethod -Uri "$BaseUrl/admin/users" -Body $JSONData -Headers $Header -Method POST -Authentication Basic -Credential $Credential -SkipCertificateCheck
+				Write-Output -InputObject $Result
+			}
+			ElseIf ($PersonalAccessToken) {
+				Write-Debug -Message "Creating new user using a PAT: $Name"
+				$Result = Invoke-RestMethod -Uri "$BaseUrl/admin/users" -Body $JSONData -Headers $Header -Method POST -SkipCertificateCheck
+				Write-Output -InputObject $Result
+			}
 		}
 	}
 	End {
-		Write-Debug -Message 'Exiting Function: Create-GHEUser'
+		Write-Debug -Message 'Exiting Function: New-GHEUser'
 	}
 }
 function Get-GHUser {
