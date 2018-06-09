@@ -1230,14 +1230,14 @@ function Set-GHERepoProperty {
 		Write-Debug -Message 'Exited Function: Set-GHERepoProperty'
 	}
 }
-function Add-GHEOrgMembership {
+function Add-GHOrgMembership {
 	<#
 	.SYNOPSIS
 		Add a user to an organization
 	.DESCRIPTION
 		This cmdlet accepts a username/handle and adds it to the organization membership
 	.EXAMPLE
-		PS ~/ Add-GHEOrgMembership -ComputerName myGHEInstance.myhost.com -Credential (Get-Credential) -Handle MonaLisa -Organization Development -Role member
+		PS ~/ Add-GHOrgMembership -ComputerName myGHEInstance.myhost.com -Credential (Get-Credential) -Handle MonaLisa -Organization Development -Role member
 		This command connects to the myGHEInstance.myhost.com instance and prompts for credentials, which then authenticates you and then adds MonaLisa to the Development organization
 	.INPUTS
 		None
@@ -1247,22 +1247,43 @@ function Add-GHEOrgMembership {
 	.NOTES
 		None
 	#>
-	[CmdletBinding()]
+	[CmdletBinding(DefaultParameterSetName='DotCom_API')]
 	Param(
 		# URL of the API end point
-		[Parameter(Mandatory = $true)]
+		[Parameter(Mandatory = $false, ParameterSetName='GHE_API')]
 		[String]$ComputerName,
 
 		# Credential object for authentication against the GHE API
-		[Parameter(Mandatory = $true)]
+		[Parameter(Mandatory = $false, ParameterSetName='DotCom_API')]
+		[Parameter(Mandatory = $true, ParameterSetName='Auth_Basic')]
+		[Parameter(Mandatory = $false, ParameterSetName='GHE_API')]
 		[PSCredential]$Credential,
+
+		# Personal Access Token to authenticate against GitHub.com
+		[Parameter(Mandatory = $false, ParameterSetName='DotCom_API')]
+		[Parameter(Mandatory = $true, ParameterSetName='Auth_PAT')]
+		[Parameter(Mandatory = $false, ParameterSetName='GHE_API')]
+		[Alias('PAT')]
+		[String]$PersonalAccessToken,
+
+		# One-Time Passcode for two-factor authentication
+		[Parameter(Mandatory = $false, ParameterSetName='DotCom_API')]
+		[Parameter(Mandatory=$false, ParameterSetName='Auth_Basic')]
+		[String]$OneTimePasscode,
+
+		# Custom API Version Header
+		[Parameter(Mandatory = $false, ParameterSetName='DotCom_API')]
+		[Parameter(Mandatory = $false, ParameterSetName='Auth_PAT')]
+		[Parameter(Mandatory = $false, ParameterSetName='GHE_API')]
+		[String]$APIVersionHeader = 'application/vnd.github.v3+json',
 
 		# Username/login for the user
 		[Parameter(Mandatory = $true)]
-		[String[]]$Handle,
+		[String[]]$User,
 
 		# Organization handle that the member will join
 		[Parameter(Mandatory = $true)]
+		[Alias('Org')]
 		[String]$Organization,
 
 		# Role to give the user in the organization (default is 'member')
@@ -1270,10 +1291,35 @@ function Add-GHEOrgMembership {
 		[String]$Role = 'member'
 	)
 	Begin {
-		Write-Debug -Message "Entered function: Add-GHEOrgMembership"
+		Write-Debug -Message "Entered function: Add-GHOrgMembership"
+
+		If ($PSCmdlet.ParameterSetName -eq 'GHE_API') {
+			Write-Debug -Message 'GHE_API Parameter Set'
+			$BaseUrl = "https://$ComputerName/api/v3"
+			Write-Debug -Message "BaseUrl is: $BaseUrl"
+		}
+		Else {
+			Write-Debug -Message 'Default Parameter Set (github.com API)'
+			$BaseUrl = 'https://api.github.com'
+			Write-Debug -Message "BaseUrl is: $BaseUrl"
+		}
+
+		$Header = @{
+			"Accept" = "$APIVersionHeader"
+		}
+		If ($PersonalAccessToken) {
+			$Header.Add('Authorization',"token $PersonalAccessToken")
+		}
+
+		If ($OneTimePasscode) {
+			$Header.Add('X-GitHub-OTP',$OneTimePasscode)
+		}
+		Write-Debug -Message "Current value of Headers is: $(Out-String -InputObject $Header)"
 	}
 	Process {
-		Foreach ($Name in $Handle) {
+		Foreach ($Name in $User) {
+			Write-Debug -Message "Current ParameterSet: $($PSCmdlet.ParameterSetName)"
+
 			$QualifiedUrl = "https://$ComputerName/api/v3/orgs/$Organization/memberships/$Name"
 			Write-Debug -Message "Qualified URL is: $QualifiedUrl"
 
@@ -1285,13 +1331,34 @@ function Add-GHEOrgMembership {
 			$JSONData = ConvertTo-Json -InputObject $Body
 			Write-Debug -Message "JSON data: $(Out-String -InputObject $JSONData)"
 
-			Write-Debug -Message "Calling REST API"
-			$Result = Invoke-WebRequest -Uri $QualifiedUrl -Method PUT -Body $JSONData -Authentication Basic -Credential $Credential -SkipCertificateCheck
-			Write-Debug -Message "Result of REST request for membership ${Name}: $(Out-String -InputObject $Result)"
+			If ($PSCmdlet.ParameterSetName -eq 'DotCom_API') {
+				If ($Credential) {
+					Write-Debug -Message "Adding user using Basic Authentication using endpoint: $BaseUrl/orgs/$Organization/memberships/$Name"
+					$Result = Invoke-RestMethod -Uri "$BaseUrl/orgs/$Organization/memberships/$Name" -Method PUT -Headers $Header -Body $JSONData -Authentication Basic -Credential $Credential
+					Write-Debug -Message "Result of REST request: $(Out-String -InputObject $Result)"
+				}
+				ElseIf ($PersonalAccessToken) {
+					Write-Debug -Message "Adding user using PAT using endpoint: $BaseUrl/orgs/$Organization/memberships/$Name"
+					$Result = Invoke-RestMethod -Uri "$BaseUrl/orgs/$Organization/memberships/$Name" -Method PUT -Headers $Header -Body $JSONData
+					Write-Debug -Message "Result of REST request: $(Out-String -InputObject $Result)"
+				}
+			}
+			If ($PSCmdlet.ParameterSetName -eq 'GHE_API') {
+				If ($Credential) {
+					Write-Debug -Message "Adding user using Basic Authentication using endpoint: $BaseUrl/orgs/$Organization/memberships/$Name"
+					$Result = Invoke-RestMethod -Uri "$BaseUrl/orgs/$Organization/memberships/$Name" -Method PUT -Headers $Header -Body $JSONData -Authentication Basic -Credential $Credential -SkipCertificateCheck
+					Write-Output -InputObject $Result
+				}
+				ElseIf ($PersonalAccessToken) {
+					Write-Debug -Message "Adding user using PAT using endpoint: $BaseUrl/orgs/$Organization/memberships/$Name"
+					$Result = Invoke-RestMethod -Uri "$BaseUrl/orgs/$Organization/memberships/$Name" -Method PUT -Headers $Header -Body $JSONData -SkipCertificateCheck
+					Write-Output -InputObject $Result
+				}
+			}
 		}
 	}
 	End {
-		Write-Debug -Message 'Exiting function: Add-GHEOrgMembership'
+		Write-Debug -Message 'Exiting function: Add-GHOrgMembership'
 	}
 }
 function Remove-GHOrgMembership {
