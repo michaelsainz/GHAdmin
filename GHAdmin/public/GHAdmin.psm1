@@ -91,38 +91,67 @@ function New-GHEOrganization {
 	.NOTES
 		None
 	#>
-	[CmdletBinding()]
+	[CmdletBinding(DefaultParameterSetName='Auth_Basic')]
 	Param(
 		# URL of the API end point
-		[Parameter(Mandatory = $true)]
+		[Parameter(Mandatory = $false)]
 		[String]$ComputerName,
 
 		# Credential object for authentication against the GHE API
-		[Parameter(Mandatory = $true)]
+		[Parameter(Mandatory = $true, ParameterSetName='Auth_Basic')]
 		[PSCredential]$Credential,
 
+		# Personal Access Token to authenticate against GitHub.com
+		[Parameter(Mandatory = $true, ParameterSetName='Auth_PAT')]
+		[Alias('PAT')]
+		[String]$PersonalAccessToken,
+
+		# One-Time Passcode for two-factor authentication
+		[Parameter(Mandatory=$false, ParameterSetName='Auth_Basic')]
+		[String]$OneTimePasscode,
+
+		# Custom API Version Header
+		[Parameter(Mandatory = $false, ParameterSetName='Auth_Basic')]
+		[Parameter(Mandatory = $false, ParameterSetName='Auth_PAT')]
+		[String]$APIVersionHeader = 'application/vnd.github.v3+json',
+
 		# Display name of the Organization
-		[Parameter(Mandatory = $true)]
+		[Parameter(Mandatory = $true, ParameterSetName='Auth_Basic')]
+		[Parameter(Mandatory = $true, ParameterSetName='Auth_PAT')]
 		[String]$DisplayName,
 
 		# User account who will be the administrator of the organization
-		[Parameter(Mandatory = $true)]
+		[Parameter(Mandatory = $true, ParameterSetName='Auth_Basic')]
+		[Parameter(Mandatory = $true, ParameterSetName='Auth_PAT')]
 		[String]$AdminName,
 
 		# User/handle of the organization
-		[Parameter(Mandatory = $true)]
-		[String]$Handle
+		[Parameter(Mandatory = $true, ParameterSetName='Auth_Basic')]
+		[Parameter(Mandatory = $true, ParameterSetName='Auth_PAT')]
+		[String[]]$Name
 	)
 	Begin {
 		Write-Debug -Message 'Entered Function: New-GHEOrganization'
+		Write-Debug -Message "$($PSCmdlet.ParameterSetName) Parameter Set"
+		$BaseUrl = "https://$ComputerName/api/v3"
+		Write-Debug -Message "BaseUrl is: $BaseUrl"
 
-		$QualifiedUrl = "https://$ComputerName/api/v3/admin/organizations"
-		Write-Debug -Message "Qualified URL is: $QualifiedUrl"
+		$Header = @{
+			"Accept" = "$APIVersionHeader"
+		}
+		If ($PersonalAccessToken) {
+			$Header.Add('Authorization', "token $PersonalAccessToken")
+		}
+
+		If ($OneTimePasscode) {
+			$Header.Add('X-GitHub-OTP',$OneTimePasscode)
+		}
+		Write-Debug -Message "Current value of Headers is: $(Out-String -InputObject $Header)"
 	}
 	Process {
-		Foreach ($OrgHandle in $Handle) {
+		Foreach ($Handle in $Name) {
 			$Body = @{
-				'login' = $OrgHandle
+				'login' = $Handle
 				'admin' = $AdminName
 				'profile_name' = $DisplayName
 			}
@@ -131,9 +160,17 @@ function New-GHEOrganization {
 			$JSONData = ConvertTo-Json -InputObject $Body
 			Write-Debug -Message "JSON data: $JSONData"
 
-			Write-Debug -Message 'Calling REST API'
-			$Result = Invoke-RestMethod -Method POST -Uri $QualifiedUrl -Body $JSONData -Authentication Basic -Credential $Credential -SkipCertificateCheck
-			Write-Debug -Message "Result of REST request for organization ${OrgHandle}: $(Out-String -InputObject $Result)"
+
+			If ($Credential) {
+				Write-Debug -Message "Creating new organization using Basic Authentication: $Handle"
+				$Result = Invoke-RestMethod -Uri "$BaseUrl/admin/organizations" -Body $JSONData -Headers $Header -Method POST -Authentication Basic -Credential $Credential -SkipCertificateCheck
+				Write-Output -InputObject $Result
+			}
+			ElseIf ($PersonalAccessToken) {
+				Write-Debug -Message "Creating new organization using a PAT: $Handle"
+				$Result = Invoke-RestMethod -Uri "$BaseUrl/admin/organizations" -Body $JSONData -Headers $Header -Method POST -SkipCertificateCheck
+				Write-Output -InputObject $Result
+			}
 		}
 	}
 	End {
