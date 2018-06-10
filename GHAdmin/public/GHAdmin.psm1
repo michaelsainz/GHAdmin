@@ -517,27 +517,66 @@ function Remove-GHEUser {
 	.NOTES
 		None
 	#>
-	[CmdletBinding()]
+	[CmdletBinding(DefaultParameterSetName='Auth_Basic')]
 	Param(
 		# URL of the API end point
-		[Parameter(Mandatory = $true)]
+		[Parameter(Mandatory = $true, ParameterSetName='Auth_Basic')]
+		[Parameter(Mandatory = $true, ParameterSetName='Auth_PAT')]
 		[String]$ComputerName,
 
-		# Username/login of the user
-		[Parameter(Mandatory = $false)]
-		[String[]]$Handle,
-
 		# Personal Access Token for authentication against the GHE API
-		[Parameter(Mandatory = $true)]
-		[PSCredential]$Credential
+		[Parameter(Mandatory = $true, ParameterSetName='Auth_Basic')]
+		[PSCredential]$Credential,
+
+		# Personal Access Token to authenticate against GitHub.com
+		[Parameter(Mandatory = $true, ParameterSetName='Auth_PAT')]
+		[Alias('PAT')]
+		[String]$PersonalAccessToken,
+
+		# Custom API Version Header
+		[Parameter(Mandatory = $false, ParameterSetName='Auth_PAT')]
+		[String]$APIVersionHeader = 'application/vnd.github.v3+json',
+
+		# One-Time Passcode for two-factor authentication
+		[Parameter(Mandatory=$false, ParameterSetName='Auth_Basic')]
+		[String]$OneTimePasscode,
+
+		# Username/login of the user
+		[Parameter(Mandatory=$true)]
+		[Alias('Handle')]
+		[String[]]$Name
 	)
 	Begin {
 		Write-Debug -Message 'Entered Function: Remove-GHEUser'
+		Write-Debug -Message "$($PSCmdlet.ParameterSetName) Parameter Set"
+
+		$BaseUrl = "https://$ComputerName/api/v3"
+		Write-Debug -Message "BaseUrl is: $BaseUrl"
+
+		$Header = @{
+			"Accept" = "$APIVersionHeader"
+		}
+		If ($PersonalAccessToken) {
+			$Header.Add('Authorization', "token $PersonalAccessToken")
+		}
+
+		If ($OneTimePasscode) {
+			$Header.Add('X-GitHub-OTP',$OneTimePasscode)
+		}
+		Write-Debug -Message "Current value of Headers is: $(Out-String -InputObject $Header)"
 	}
 	Process {
-		Foreach ($User in $Handle) {
-			Write-Debug -Message "Querying for user: $User"
-			Invoke-RestMethod -Uri "https://$ComputerName/api/v3/admin/users/$User" -Method DELETE -Authentication Basic -Credential $Credential -SkipCertificateCheck
+		Foreach ($Handle in $Name) {
+			If ($Credential) {
+				Write-Debug -Message "Removing user account using basic authentication: $Handle"
+				$Result = Invoke-RestMethod -Uri "$BaseUrl/admin/users/$Handle" -Method DELETE -Headers $Header -Credential $Credential -Authentication Basic -SkipCertificateCheck
+				Write-Output -InputObject $Result
+			}
+			If ($PersonalAccessToken) {
+				Write-Debug -Message "Removing user account using a PAT: $Handle"
+				$Result = Invoke-RestMethod -Uri "$BaseUrl/admin/users/$Handle" -Method DELETE -Headers $Header -SkipCertificateCheck
+				Write-Output -InputObject $Result
+			}
 		}
 	}
 	End {
