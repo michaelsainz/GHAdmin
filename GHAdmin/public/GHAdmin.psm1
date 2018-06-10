@@ -202,20 +202,35 @@ function Get-GHOrganization {
 		[String]$ComputerName,
 
 		# Credential object for authentication against the GHE API
-		[Parameter(Mandatory = $true)]
+		[Parameter(Mandatory = $false, ParameterSetName='DotCom_API')]
+		[Parameter(Mandatory = $true, ParameterSetName='Auth_Basic')]
+		[Parameter(Mandatory = $false, ParameterSetName='GHE_API')]
 		[PSCredential]$Credential,
 
-		# User/handle of the organization
-		[Parameter(Mandatory = $true)]
-		[String[]]$Handle,
+		# Personal Access Token to authenticate against GitHub.com
+		[Parameter(Mandatory = $false, ParameterSetName='DotCom_API')]
+		[Parameter(Mandatory = $true, ParameterSetName='Auth_PAT')]
+		[Parameter(Mandatory = $false, ParameterSetName='GHE_API')]
+		[Alias('PAT')]
+		[String]$PersonalAccessToken,
 
 		# Custom API Version Header
-		[Parameter(Mandatory = $false)]
+		[Parameter(Mandatory = $false, ParameterSetName='DotCom_API')]
+		[Parameter(Mandatory = $false, ParameterSetName='Auth_PAT')]
+		[Parameter(Mandatory = $false, ParameterSetName='GHE_API')]
 		[String]$APIVersionHeader = 'application/vnd.github.v3+json',
 
 		# One-Time Passcode for two-factor authentication
-		[Parameter(Mandatory=$false)]
-		[String]$OneTimePasscode
+		[Parameter(Mandatory = $false, ParameterSetName='DotCom_API')]
+		[Parameter(Mandatory=$false, ParameterSetName='Auth_Basic')]
+		[String]$OneTimePasscode,
+
+		# Name/handle of the organization
+		[Parameter(Mandatory = $true, ParameterSetName='DotCom_API')]
+		[Parameter(Mandatory = $true, ParameterSetName='Auth_PAT')]
+		[Parameter(Mandatory = $true, ParameterSetName='GHE_API')]
+		[Alias('Org','Organization')]
+		[String[]]$Name
 	)
 	Begin {
 		Write-Debug -Message 'Entered Function: Get-GHOrganization'
@@ -234,21 +249,40 @@ function Get-GHOrganization {
 		$Header = @{
 			"Accept" = "$APIVersionHeader"
 		}
+		If ($PersonalAccessToken) {
+			$Header.Add('Authorization', "token $PersonalAccessToken")
+		}
 		If ($OneTimePasscode) {
 			$Header.Add('X-GitHub-OTP',$OneTimePasscode)
 		}
+		Write-Debug -Message "Current value of Headers is: $(Out-String -InputObject $Header)"
 	}
 	Process {
-		If ($PSCmdlet.ParameterSetName -eq 'GHE_API') {
-			Foreach ($OrgName in $Handle) {
-					Write-Debug -Message "Querying for organization: $OrgName"
-					Invoke-RestMethod -Uri "$BaseUrl/orgs/$OrgName" -Method GET -Headers $Header -Authentication Basic -Credential $Credential -SkipCertificateCheck
+		Foreach ($Org in $Name) {
+			Write-Debug -Message "Current ParameterSet: $($PSCmdlet.ParameterSetName)"
+			If ($PSCmdlet.ParameterSetName -eq 'DotCom_API') {
+				If ($Credential) {
+					Write-Debug -Message "Querying for organization using basic authentication: $Org"
+					$Result = Invoke-RestMethod -Uri "$BaseUrl/orgs/$Org" -Method GET -Headers $Header -Authentication Basic -Credential $Credential -SkipCertificateCheck
+					Write-Output -InputObject $Result
+				}
+				Elseif ($PersonalAccessToken) {
+					Write-Debug -Message "Querying for organization using basic authentication: $Org"
+					$Result = Invoke-RestMethod -Uri "$BaseUrl/orgs/$Org" -Method GET -Headers $Header -SkipCertificateCheck
+					Write-Output -InputObject $Result
+				}
 			}
-		}
-		Else {
-			Foreach ($OrgName in $Handle) {
-				Write-Debug -Message "Querying for organization: $OrgName"
-				Invoke-RestMethod -Uri "$BaseUrl/orgs/$OrgName" -Method GET -Headers $Header -Authentication Basic -Credential $Credential -SkipCertificateCheck
+			ElseIf ($PSCmdlet.ParameterSetName -eq 'GHE_API') {
+				If ($Credential) {
+					Write-Debug -Message "Querying for organization using basic authentication: $Org"
+					$Result = Invoke-RestMethod -Uri "$BaseUrl/orgs/$Org" -Method GET -Headers $Header -Authentication Basic -Credential $Credential -SkipCertificateCheck
+					Write-Output -InputObject $Result
+				}
+				Elseif ($PersonalAccessToken) {
+					Write-Debug -Message "Querying for organization using basic authentication: $Org"
+					$Result = Invoke-RestMethod -Uri "$BaseUrl/orgs/$Org" -Method GET -Headers $Header -SkipCertificateCheck
+					Write-Output -InputObject $Result
+				}
 			}
 		}
 	}
@@ -369,27 +403,42 @@ function Get-GHUser {
 	.NOTES
 		None
 	#>
-	[CmdletBinding()]
+	[CmdletBinding(DefaultParameterSetName='DotCom_API')]
 	Param(
 		# URL of the API end point
 		[Parameter(Mandatory = $false, ParameterSetName='GHE_API')]
 		[String]$ComputerName,
 
-		# Username/login of the user
-		[Parameter(Mandatory = $false)]
-		[String[]]$Handle,
-
-		# Personal Access Token for authentication against the GHE API
-		[Parameter(Mandatory = $true)]
+		# Credential object for authentication against the GHE API
+		[Parameter(Mandatory = $false, ParameterSetName='DotCom_API')]
+		[Parameter(Mandatory = $true, ParameterSetName='Auth_Basic')]
+		[Parameter(Mandatory = $false, ParameterSetName='GHE_API')]
 		[PSCredential]$Credential,
 
-		# One-Time Passcode for two-factor authentication
-		[Parameter(Mandatory=$false)]
-		[String]$OneTimePasscode,
+		# Personal Access Token to authenticate against GitHub.com
+		[Parameter(Mandatory = $false, ParameterSetName='DotCom_API')]
+		[Parameter(Mandatory = $true, ParameterSetName='Auth_PAT')]
+		[Parameter(Mandatory = $false, ParameterSetName='GHE_API')]
+		[Alias('PAT')]
+		[String]$PersonalAccessToken,
 
 		# Custom API Version Header
-		[Parameter(Mandatory = $false)]
-		[String]$APIVersionHeader = 'application/vnd.github.v3+json'
+		[Parameter(Mandatory = $false, ParameterSetName='DotCom_API')]
+		[Parameter(Mandatory = $false, ParameterSetName='Auth_PAT')]
+		[Parameter(Mandatory = $false, ParameterSetName='GHE_API')]
+		[String]$APIVersionHeader = 'application/vnd.github.v3+json',
+
+		# One-Time Passcode for two-factor authentication
+		[Parameter(Mandatory = $false, ParameterSetName='DotCom_API')]
+		[Parameter(Mandatory=$false, ParameterSetName='Auth_Basic')]
+		[String]$OneTimePasscode,
+
+		# Fully qualified name of the team
+		[Parameter(Mandatory = $true, ParameterSetName='DotCom_API')]
+		[Parameter(Mandatory = $true, ParameterSetName='Auth_PAT')]
+		[Parameter(Mandatory = $true, ParameterSetName='GHE_API')]
+		[Alias('Handle')]
+		[String[]]$Name
 	)
 	Begin {
 		Write-Debug -Message 'Entered Function: Get-GHUser'
@@ -408,21 +457,42 @@ function Get-GHUser {
 		$Header = @{
 			"Accept" = "$APIVersionHeader"
 		}
+		If ($PersonalAccessToken) {
+			$Header.Add('Authorization',"token $PersonalAccessToken")
+		}
+
 		If ($OneTimePasscode) {
 			$Header.Add('X-GitHub-OTP',$OneTimePasscode)
 		}
+		Write-Debug -Message "Current value of Headers is: $(Out-String -InputObject $Header)"
 	}
 	Process {
-		If ($PSCmdlet.ParameterSetName -eq 'GHE_API') {
-			Foreach ($User in $Handle) {
-				Write-Debug -Message "Querying for user: $User"
-				Invoke-RestMethod -Uri "https://$ComputerName/api/v3/users/$User" -Headers $Header -Method GET -Authentication Basic -Credential $Credential -SkipCertificateCheck
+		Foreach ($Handle in $Name) {
+			Write-Debug -Message "Current ParameterSet: $($PSCmdlet.ParameterSetName)"
+
+			If ($PSCmdlet.ParameterSetName -eq 'DotCom_API') {
+				If ($Credential) {
+					Write-Debug -Message "Querying user $Handle using Basic Authentication"
+					$Result = Invoke-RestMethod -Uri "$BaseUrl/users/$Handle" -Headers $Header -Method GET -Authentication Basic -Credential $Credential
+					Write-Output -InputObject $Result
+				}
+				If ($PersonalAccessToken) {
+					Write-Debug -Message "Querying user $Handle using a PAT"
+					$Result = Invoke-RestMethod -Uri "$BaseUrl/users/$Handle" -Headers $Header -Method GET
+					Write-Output -InputObject $Result
+				}
 			}
-		}
-		Else {
-			Foreach ($User in $Handle) {
-				Write-Debug -Message "Querying for user: $User"
-				Invoke-RestMethod -Uri "$BaseUrl/users/$User" -Method GET -Headers $Header -Authentication Basic -Credential $Credential -SkipCertificateCheck
+			ElseIf ($PSCmdlet.ParameterSetName -eq 'GHE_API') {
+				If ($Credential) {
+					Write-Debug -Message "Querying user $Handle using Basic Authentication"
+					$Result = Invoke-RestMethod -Uri "$BaseUrl/users/$Handle" -Headers $Header -Method GET -Authentication Basic -Credential $Credential -SkipCertificateCheck
+					Write-Output -InputObject $Result
+				}
+				If ($PersonalAccessToken) {
+					Write-Debug -Message "Querying user $Handle using a PAT"
+					$Result = Invoke-RestMethod -Uri "$BaseUrl/users/$Handle" -Headers $Header -Method GET -SkipCertificateCheck
+					Write-Output -InputObject $Result
+				}
 			}
 		}
 	}
