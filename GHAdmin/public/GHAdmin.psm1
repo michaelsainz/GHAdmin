@@ -764,39 +764,76 @@ function Rename-GHEUser {
 	.NOTES
 		None
 	#>
-	[CmdletBinding()]
+	[CmdletBinding(DefaultParameterSetName='Auth_Basic')]
 	Param(
 		# URL of the API end point
-		[Parameter(Mandatory = $true)]
+		[Parameter(Mandatory = $true, ParameterSetName='Auth_Basic')]
+		[Parameter(Mandatory = $true, ParameterSetName='Auth_PAT')]
 		[String]$ComputerName,
 
-		# Username/login of the user
-		[Parameter(Mandatory = $true)]
-		[String]$Handle,
-
-		[Parameter(Mandatory = $true)]
-		[String]$NewHandle,
-
 		# Personal Access Token for authentication against the GHE API
-		[Parameter(Mandatory = $true)]
-		[PSCredential]$Credential
+		[Parameter(Mandatory = $true, ParameterSetName='Auth_Basic')]
+		[PSCredential]$Credential,
+
+		# Personal Access Token to authenticate against GitHub.com
+		[Parameter(Mandatory = $true, ParameterSetName='Auth_PAT')]
+		[Alias('PAT')]
+		[String]$PersonalAccessToken,
+
+		# Custom API Version Header
+		[Parameter(Mandatory = $false, ParameterSetName='Auth_PAT')]
+		[String]$APIVersionHeader = 'application/vnd.github.v3+json',
+
+		# One-Time Passcode for two-factor authentication
+		[Parameter(Mandatory=$false, ParameterSetName='Auth_Basic')]
+		[String]$OneTimePasscode,
+
+		# Username/login of the user
+		[Parameter(Mandatory=$true)]
+		[Alias('Handle')]
+		[String]$Name,
+
+		# New name of the user to be updated
+		[Parameter(Mandatory=$true)]
+		[String]$NewName
 	)
 	Begin {
 		Write-Debug -Message 'Entered Function: Rename-GHEUser'
+		Write-Debug -Message "$($PSCmdlet.ParameterSetName) Parameter Set"
+
+		$BaseUrl = "https://$ComputerName/api/v3"
+		Write-Debug -Message "BaseUrl is: $BaseUrl"
+
+		$Header = @{
+			"Accept" = "$APIVersionHeader"
+		}
+		If ($PersonalAccessToken) {
+			$Header.Add('Authorization', "token $PersonalAccessToken")
+		}
+		If ($OneTimePasscode) {
+			$Header.Add('X-GitHub-OTP',$OneTimePasscode)
+		}
+		Write-Debug -Message "Current value of Headers is: $(Out-String -InputObject $Header)"
 	}
 	Process {
 		$Body = @{
-			'login' = $NewHandle
+			'login' = $NewName
 		}
 		Write-Debug -Message "Request Body: $(Out-String -InputObject $Body)"
 
 		$JSONData = ConvertTo-Json -InputObject $Body
-		Write-Debug -Message "JSON data: $JSONData"
+		Write-Debug -Message "JSON data: $(Out-String -InputObject $JSONData)"
 
-		Write-Debug -Message "Querying for user: $Handle"
-		$WebResults = Invoke-RestMethod -Uri "https://$ComputerName/api/v3/admin/users/$Handle" -Method PATCH -Authentication Basic -Body $JSONData -Credential $Credential -SkipCertificateCheck
-
-		Write-Debug -Message "Response from endpoint: $WebResults"
+		If ($Credential) {
+			Write-Debug -Message "Renaming user account using basic authentication: $Name"
+			$Result = Invoke-RestMethod -Uri "$BaseUrl/admin/users/$Name" -Method PATCH -Headers $Header -Body $JSONData -Credential $Credential -Authentication Basic -SkipCertificateCheck
+			Write-Output -InputObject $Result
+		}
+		If ($PersonalAccessToken) {
+			Write-Debug -Message "Renaming user account using a PAT: $Name"
+			$Result = Invoke-RestMethod -Uri "$BaseUrl/admin/users/$Name" -Method PATCH -Headers $Header -Body $JSONData -SkipCertificateCheck
+			Write-Output -InputObject $Result
+		}
 	}
 	End {
 		Write-Debug -Message 'Exiting Function: Rename-GHEUser'
@@ -968,7 +1005,7 @@ function Get-GHTeam {
 		Write-Debug -Message 'Exiting Function: Get-GHTeam'
 	}
 }
-function New-GHETeam {
+function New-GHTeam {
 	<#
 	.SYNOPSIS
 		Creates a new Team
@@ -985,19 +1022,39 @@ function New-GHETeam {
 	.NOTES
 		None
 	#>
-	[CmdletBinding()]
+	[CmdletBinding(DefaultParameterSetName='DotCom_API')]
 	Param(
 		# URL of the API end point
-		[Parameter(Mandatory = $true)]
+		[Parameter(Mandatory = $false, ParameterSetName='GHE_API')]
 		[String]$ComputerName,
 
-		# Personal Access Token for authentication against the GHE API
-		[Parameter(Mandatory = $true)]
+		# Credential object for authentication against the GHE API
+		[Parameter(Mandatory = $false, ParameterSetName='DotCom_API')]
+		[Parameter(Mandatory = $true, ParameterSetName='Auth_Basic')]
+		[Parameter(Mandatory = $false, ParameterSetName='GHE_API')]
 		[PSCredential]$Credential,
+
+		# Personal Access Token to authenticate against GitHub.com
+		[Parameter(Mandatory = $false, ParameterSetName='DotCom_API')]
+		[Parameter(Mandatory = $true, ParameterSetName='Auth_PAT')]
+		[Parameter(Mandatory = $false, ParameterSetName='GHE_API')]
+		[Alias('PAT')]
+		[String]$PersonalAccessToken,
+
+		# Custom API Version Header
+		[Parameter(Mandatory = $false, ParameterSetName='DotCom_API')]
+		[Parameter(Mandatory = $false, ParameterSetName='Auth_PAT')]
+		[Parameter(Mandatory = $false, ParameterSetName='GHE_API')]
+		[String]$APIVersionHeader = 'application/vnd.github.v3+json',
+
+		# One-Time Passcode for two-factor authentication
+		[Parameter(Mandatory = $false, ParameterSetName='DotCom_API')]
+		[Parameter(Mandatory = $false, ParameterSetName='Auth_Basic')]
+		[String]$OneTimePasscode,
 
 		# User/handle of the organization
 		[Parameter(Mandatory = $true)]
-		[String]$Handle,
+		[String]$Name,
 
 		# The organization that the team will be associated with
 		[Parameter(Mandatory = $true)]
@@ -1020,13 +1077,32 @@ function New-GHETeam {
 		[String[]]$Maintainers
 	)
 	Begin {
-		Write-Debug -Message 'Entered Function: Create-GHETeam'
+		Write-Debug -Message 'Entered Function: New-GHTeam'
 
-		$QualifiedUrl = "https://$ComputerName/api/v3/orgs/$Organization/teams"
-		Write-Debug -Message "Qualified URL is: $QualifiedUrl"
+		If ($PSCmdlet.ParameterSetName -eq 'GHE_API') {
+			Write-Debug -Message 'GHE_API Parameter Set'
+			$BaseUrl = "https://$ComputerName/api/v3"
+			Write-Debug -Message "BaseUrl is: $BaseUrl"
+		}
+		Else {
+			Write-Debug -Message 'Default Parameter Set (github.com API)'
+			$BaseUrl = 'https://api.github.com'
+			Write-Debug -Message "BaseUrl is: $BaseUrl"
+		}
+
+		$Header = @{
+			"Accept" = "$APIVersionHeader"
+		}
+		If ($PersonalAccessToken) {
+			$Header.Add('Authorization',"token $PersonalAccessToken")
+		}
+		If ($OneTimePasscode) {
+			$Header.Add('X-GitHub-OTP',$OneTimePasscode)
+		}
+		Write-Debug -Message "Current value of Headers is: $(Out-String -InputObject $Header)"
 	}
 	Process {
-		Foreach ($Team in $Handle) {
+		Foreach ($Handle in $Name) {
 			$Body = @{
 				'name' = $Handle
 				'description' = $(If ($Description -eq $null){ ,@() } Else { $Description })
@@ -1038,14 +1114,34 @@ function New-GHETeam {
 
 			$JSONData = ConvertTo-Json -InputObject $Body
 			Write-Debug -Message "JSON data: $JSONData"
-
-			Write-Debug -Message "Calling REST API"
-			$Result = Invoke-RestMethod -Method POST -Uri $QualifiedUrl -Body $JSONData -Authentication Basic -Credential $Credential -SkipCertificateCheck
-			Write-Debug -Message "Result of REST request for team ${Team}: $(Out-String -InputObject $Result)"
+			If ($PSCmdlet.ParameterSetName -eq 'DotCom_API') {
+				If ($Credential) {
+					Write-Debug -Message "Creating team $Handle with Basic Authentication using endpoint: $BaseUrl/orgs/$Organization/teams"
+					$Result = Invoke-RestMethod -Uri "$BaseUrl/orgs/$Organization/teams" -Headers $Header -Body $JSONData -Method POST -Authentication Basic -Credential $Credential
+					Write-Debug -Message "Result of REST request: $(Out-String -InputObject $Result)"
+				}
+				If ($PersonalAccessToken) {
+					Write-Debug -Message "Creating team $Handle with a PAT using endpoint: $BaseUrl/orgs/$Organization/teams"
+					$Result = Invoke-RestMethod -Uri "$BaseUrl/orgs/$Organization/teams" -Headers $Header -Body $JSONData -Method POST
+					Write-Debug -Message "Result of REST request: $(Out-String -InputObject $Result)"
+				}
+			}
+			If ($PSCmdlet.ParameterSetName -eq 'GHE_API') {
+				If ($Credential) {
+					Write-Debug -Message "Creating team $Handle with Basic Authentication using endpoint: $BaseUrl/orgs/$Organization/teams"
+					$Result = Invoke-RestMethod -Uri "$BaseUrl/orgs/$Organization/teams" -Headers $Header -Body $JSONData -Method POST -Authentication Basic -Credential $Credential -SkipCertificateCheck
+					Write-Debug -Message "Result of REST request: $(Out-String -InputObject $Result)"
+				}
+				If ($PersonalAccessToken) {
+					Write-Debug -Message "Creating team $Handle with a PAT using endpoint: $BaseUrl/orgs/$Organization/teams"
+					$Result = Invoke-RestMethod -Uri "$BaseUrl/orgs/$Organization/teams" -Headers $Header -Body $JSONData -Method POST -SkipCertificateCheck
+					Write-Debug -Message "Result of REST request: $(Out-String -InputObject $Result)"
+				}
+			}
 		}
 	}
 	End {
-		Write-Debug -Message 'Exiting Function: Create-GHETeam'
+		Write-Debug -Message 'Exiting Function: New-GHTeam'
 	}
 }
 function Remove-GHETeam {
