@@ -1248,21 +1248,63 @@ function Remove-GHTeam {
 				}
 				}
 				If ($PersonalAccessToken) {
+					Write-Debug -Message "Retrieving list of teams with a PAT using endpoint: $BaseUrl/orgs/$($TeamResolvedName.Owner)/teams"
+					$TeamsResult = Invoke-RestMethod -Uri "$BaseUrl/orgs/$($TeamResolvedName.Owner)/teams" -Method GET -Headers $Header -Authentication Basic -Credential $Credential -SkipCertificateCheck
 
+					Foreach ($PSItem in $TeamsResult) {
+						Foreach ($i in $PSItem) {
+							$FullList[$i.name] = $i.id
+						}
+					}
+
+					If ($FullList.ContainsKey($TeamResolvedName.Name)) {
+						Write-Debug -Message "Located team $Handle with the id of: $($FullList[$TeamResolvedName.Name])"
+
+						$Result = Invoke-RestMethod -Uri "$BaseUrl/teams/$($FullList[$TeamResolvedName.Name])" -Headers $Header -Credential $Credential -Authentication Basic -Method DELETE
+						Write-Output $Result
+					}
 				}
 			}
 			If ($PSCmdlet.ParameterSetName -eq 'GHE_API') {
 				If ($Credential) {
+					Write-Debug -Message "Retrieving list of teams with Basic Authentication using endpoint: $BaseUrl/orgs/$($TeamResolvedName.Owner)/teams"
+					$TeamsResult = Invoke-RestMethod -Uri "$BaseUrl/orgs/$($TeamResolvedName.Owner)/teams" -Method GET -Headers $Header -Authentication Basic -Credential $Credential -SkipCertificateCheck
 
+					Foreach ($PSItem in $TeamsResult) {
+						Foreach ($i in $PSItem) {
+							$FullList[$i.name] = $i.id
+						}
+					}
+
+					If ($FullList.ContainsKey($TeamResolvedName.Name)) {
+						Write-Debug -Message "Located team $Handle with the id of: $($FullList[$TeamResolvedName.Name])"
+
+						$Result = Invoke-RestMethod -Uri "$BaseUrl/teams/$($FullList[$TeamResolvedName.Name])" -Headers $Header -Credential $Credential -Authentication Basic -Method DELETE
+						Write-Output $Result
+					}
 				}
 				If ($PersonalAccessToken) {
+					Write-Debug -Message "Retrieving list of teams with a PAT using endpoint: $BaseUrl/orgs/$($TeamResolvedName.Owner)/teams"
+					$TeamsResult = Invoke-RestMethod -Uri "$BaseUrl/orgs/$($TeamResolvedName.Owner)/teams" -Method GET -Headers $Header -Authentication Basic -Credential $Credential -SkipCertificateCheck
 
+					Foreach ($PSItem in $TeamsResult) {
+						Foreach ($i in $PSItem) {
+							$FullList[$i.name] = $i.id
+						}
+					}
+
+					If ($FullList.ContainsKey($TeamResolvedName.Name)) {
+						Write-Debug -Message "Located team $Handle with the id of: $($FullList[$TeamResolvedName.Name])"
+
+						$Result = Invoke-RestMethod -Uri "$BaseUrl/teams/$($FullList[$TeamResolvedName.Name])" -Headers $Header -Credential $Credential -Authentication Basic -Method DELETE
+						Write-Output $Result
+					}
 				}
 			}
 		}
 
 	End {
-		Write-Debug -Message 'Exiting function: Remove-GHETeam'
+		Write-Debug -Message 'Exiting function: Remove-GHTeam'
 	}
 }
 
