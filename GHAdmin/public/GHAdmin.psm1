@@ -1144,14 +1144,14 @@ function New-GHTeam {
 		Write-Debug -Message 'Exiting Function: New-GHTeam'
 	}
 }
-function Remove-GHETeam {
+function Remove-GHTeam {
 	<#
 	.SYNOPSIS
 		Removes a team
 	.DESCRIPTION
 		This cmdlet removes/deletes a team
 	.EXAMPLE
-		PS ~/ Remove-GHETeam -ComputerName myGHEInstance.myhost.com -Credential (Get-Credential) -Handle 'FrontEndTeam' -Organization Development
+		PS ~/ Remove-GHTeam -ComputerName myGHEInstance.myhost.com -Credential (Get-Credential) -Handle 'FrontEndTeam' -Organization Development
 		This command connects to the myGHEInstance.myhost.com instance and prompts for credentials, which then authenticates you and then removes the team FrontEndTeam
 	.INPUTS
 		None
@@ -1161,45 +1161,111 @@ function Remove-GHETeam {
 	.NOTES
 		None
 	#>
-	[CmdletBinding()]
+	[CmdletBinding(DefaultParameterSetName='DotCom_API')]
 	Param(
 		# URL of the API end point
-		[Parameter(Mandatory = $true)]
+		[Parameter(Mandatory = $false, ParameterSetName='GHE_API')]
 		[String]$ComputerName,
 
 		# Credential object for authentication against the GHE API
-		[Parameter(Mandatory = $true)]
+		[Parameter(Mandatory = $false, ParameterSetName='DotCom_API')]
+		[Parameter(Mandatory = $true, ParameterSetName='Auth_Basic')]
+		[Parameter(Mandatory = $false, ParameterSetName='GHE_API')]
 		[PSCredential]$Credential,
 
-		# Username/login for the team to remove
-		[Parameter(Mandatory = $true)]
-		[String]$Handle,
+		# Personal Access Token to authenticate against GitHub.com
+		[Parameter(Mandatory = $false, ParameterSetName='DotCom_API')]
+		[Parameter(Mandatory = $true, ParameterSetName='Auth_PAT')]
+		[Parameter(Mandatory = $false, ParameterSetName='GHE_API')]
+		[Alias('PAT')]
+		[String]$PersonalAccessToken,
 
-		# Handle for the org from which the team exists in
-		[Parameter(Mandatory = $true)]
-		[String]$Organization
+		# Custom API Version Header
+		[Parameter(Mandatory = $false, ParameterSetName='DotCom_API')]
+		[Parameter(Mandatory = $false, ParameterSetName='Auth_PAT')]
+		[Parameter(Mandatory = $false, ParameterSetName='GHE_API')]
+		[String]$APIVersionHeader = 'application/vnd.github.v3+json',
+
+		# One-Time Passcode for two-factor authentication
+		[Parameter(Mandatory = $false, ParameterSetName='DotCom_API')]
+		[Parameter(Mandatory = $false, ParameterSetName='Auth_Basic')]
+		[String]$OneTimePasscode,
+
+		[Parameter(Mandatory = $true, ParameterSetName='DotCom_API')]
+		[Parameter(Mandatory = $true, ParameterSetName='Auth_PAT')]
+		[Parameter(Mandatory = $true, ParameterSetName='GHE_API')]
+		[String[]]$Name
 	)
 	Begin {
-		Write-Debug -Message "Entered function: Remove-GHETeam"
+		Write-Debug -Message "Entered function: Remove-GHTeam"
+
+		If ($PSCmdlet.ParameterSetName -eq 'GHE_API') {
+			Write-Debug -Message 'GHE_API Parameter Set'
+			$BaseUrl = "https://$ComputerName/api/v3"
+			Write-Debug -Message "BaseUrl is: $BaseUrl"
+		}
+		Else {
+			Write-Debug -Message 'Default Parameter Set (github.com API)'
+			$BaseUrl = 'https://api.github.com'
+			Write-Debug -Message "BaseUrl is: $BaseUrl"
+		}
+
+		$Header = @{
+			"Accept" = "$APIVersionHeader"
+		}
+		If ($PersonalAccessToken) {
+			$Header.Add('Authorization',"token $PersonalAccessToken")
+		}
+		If ($OneTimePasscode) {
+			$Header.Add('X-GitHub-OTP',$OneTimePasscode)
+		}
+		Write-Debug -Message "Current value of Headers is: $(Out-String -InputObject $Header)"
 	}
 	Process {
-		Foreach ($Name in $Handle) {
-			Write-Debug -Message "Querying for team ID"
-			$Teams = Invoke-RestMethod -Uri "https://$ComputerName/api/v3/orgs/$Organization/teams" -Method GET -Authentication Basic -Credential $Credential -SkipCertificateCheck
+		Foreach ($Handle in $Name) {
+			$TeamResolvedName = Resolve-GHRepoName -Repository $Handle
+			Write-Debug -Message "Split $Handle string to $($TeamResolvedName.Owner) & $($TeamResolvedName.Name)"
 
-			Foreach ($Team in $Teams) {
-				If ($Team.Name -eq $Handle) {
-					Write-Debug -Message "Removing team id: $($Team.id)"
-					Invoke-RestMethod -Uri "https://$ComputerName/api/v3/teams/$($Team.id)" -Method DELETE -Authentication Basic -Credential $Credential -SkipCertificateCheck
+			$FullList = @{}
+
+			If ($PSCmdlet.ParameterSetName -eq 'DotCom_API') {
+				If ($Credential) {
+					Write-Debug -Message "Retrieving list of teams with Basic Authentication using endpoint: $BaseUrl/orgs/$($TeamResolvedName.Owner)/teams"
+					$TeamsResult = Invoke-RestMethod -Uri "$BaseUrl/orgs/$($TeamResolvedName.Owner)/teams" -Method GET -Headers $Header -Authentication Basic -Credential $Credential -SkipCertificateCheck
+
+					Foreach ($PSItem in $TeamsResult) {
+						Foreach ($i in $PSItem) {
+							$FullList[$i.name] = $i.id
+						}
+					}
+
+					If ($FullList.ContainsKey($TeamResolvedName.Name)) {
+						Write-Debug -Message "Located team $Handle with the id of: $($FullList[$TeamResolvedName.Name])"
+
+						$Result = Invoke-RestMethod -Uri "$BaseUrl/teams/$($FullList[$TeamResolvedName.Name])" -Headers $Header -Credential $Credential -Authentication Basic -Method DELETE
+						Write-Output $Result
+					}
+				}
+				}
+				If ($PersonalAccessToken) {
+
+				}
+			}
+			If ($PSCmdlet.ParameterSetName -eq 'GHE_API') {
+				If ($Credential) {
+
+				}
+				If ($PersonalAccessToken) {
+
 				}
 			}
 		}
-	}
 
 	End {
 		Write-Debug -Message 'Exiting function: Remove-GHETeam'
 	}
 }
+
 function New-GHERepo {
 	<#
 	.SYNOPSIS
