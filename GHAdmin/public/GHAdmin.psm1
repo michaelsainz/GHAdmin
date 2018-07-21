@@ -1308,14 +1308,14 @@ function Remove-GHTeam {
 	}
 }
 
-function New-GHERepo {
+function New-GHRepo {
 	<#
 	.SYNOPSIS
 		Creates a new Repository
 	.DESCRIPTION
 		This cmdlet creates a new repository
 	.EXAMPLE
-		PS ~/ New-GHETeam -ComputerName myGHEInstance.myhost.com -Credential (Get-Credential) -Name MyNewRepo -Description 'New repo for my project!' -HomePage 'https://myprojectsite.com/' -Organization Development -Private -AutoInit -LicenseTemplate 'mit'
+		PS ~/ New-GHTeam -ComputerName myGHEInstance.myhost.com -Credential (Get-Credential) -Name MyNewRepo -Description 'New repo for my project!' -HomePage 'https://myprojectsite.com/' -Organization Development -Private -AutoInit -LicenseTemplate 'mit'
 		This command connects to the myGHEInstance.myhost.com instance and prompts for credentials, which then authenticates you and then creates a new Repository named MyNewRepo that has a homepage value of https://myprojectsite.com/ along with associating it within the Development organiztion, initializing it, and restricting it to be private while also associating the MIT open-source license to it.
 	.INPUTS
 		None
@@ -1325,74 +1325,121 @@ function New-GHERepo {
 	.NOTES
 		None
 	#>
-	[CmdletBinding()]
+	[CmdletBinding(DefaultParameterSetName='DotCom_API')]
 	Param(
-		# DNS address of the primary GHE instance
-		[Parameter(Mandatory = $true)]
+		# URL of the API end point
+		[Parameter(Mandatory = $false, ParameterSetName='GHE_API')]
 		[String]$ComputerName,
 
-		# Credentials for authentication to GHE
-		[Parameter(Mandatory = $true)]
+		# Credential object for authentication against the GHE API
+		[Parameter(Mandatory = $false, ParameterSetName='DotCom_API')]
+		[Parameter(Mandatory = $true, ParameterSetName='Auth_Basic')]
+		[Parameter(Mandatory = $false, ParameterSetName='GHE_API')]
 		[PSCredential]$Credential,
 
-		# Name of the repository to create
+		# Personal Access Token to authenticate against GitHub.com
+		[Parameter(Mandatory = $false, ParameterSetName='DotCom_API')]
+		[Parameter(Mandatory = $true, ParameterSetName='Auth_PAT')]
+		[Parameter(Mandatory = $false, ParameterSetName='GHE_API')]
+		[Alias('PAT')]
+		[String]$PersonalAccessToken,
+
+		# Custom API Version Header
+		[Parameter(Mandatory = $false, ParameterSetName='DotCom_API')]
+		[Parameter(Mandatory = $false, ParameterSetName='Auth_PAT')]
+		[Parameter(Mandatory = $false, ParameterSetName='GHE_API')]
+		[String]$APIVersionHeader = 'application/vnd.github.v3+json',
+
+		# One-Time Passcode for two-factor authentication
+		[Parameter(Mandatory = $false, ParameterSetName='DotCom_API')]
+		[Parameter(Mandatory = $false, ParameterSetName='Auth_Basic')]
+		[String]$OneTimePasscode,
+
+		[Parameter(Mandatory = $true, ParameterSetName='DotCom_API')]
+		[Parameter(Mandatory = $true, ParameterSetName='Auth_PAT')]
+		[Parameter(Mandatory = $true, ParameterSetName='GHE_API')]
 		[String[]]$Name,
 
 		# Description for the repository
+		[Parameter(Mandatory = $false)]
 		[String]$Description,
 
 		# URL with more information about the repository
+		[Parameter(Mandatory = $false)]
 		[String]$HomePage,
 
 		# Organization owner of the repository
+		[Parameter(Mandatory = $false)]
 		[String]$Organization,
 
 		# Switch to create a private repository
+		[Parameter(Mandatory = $false)]
 		[Switch]$Private,
 
 		# Switch to turn off issue tracking
+		[Parameter(Mandatory = $false)]
 		[Switch]$DisableIssues,
 
 		# Switch to turn off project boards
+		[Parameter(Mandatory = $false)]
 		[Switch]$DisableProjects,
 
 		# Switch to turn off wiki support
+		[Parameter(Mandatory = $false)]
 		[Switch]$DisableWiki,
 
 		# The ID of the team that will have access to this repository
+		[Parameter(Mandatory = $false)]
 		[Int]$TeamId,
 
 		# Switch to automatically initialize the repo with an emtpy README file and commit
+		[Parameter(Mandatory = $false)]
 		[Switch]$AutoInit,
 
 		# The language or platform of the template to apply
+		[Parameter(Mandatory = $false)]
 		[String]$GitIgnoreTemplate,
 
 		# The license template for the repository
+		[Parameter(Mandatory = $false)]
 		[String]$LicenseTemplate,
 
 		# Switch to disable squash merging pull requests
+		[Parameter(Mandatory = $false)]
 		[Switch]$DisableSquash,
 
 		# Switch to disable merge commits/pull requests
+		[Parameter(Mandatory = $false)]
 		[Switch]$DisableMerge,
 
 		# Switch to disable rebase merge commits/pull requests
+		[Parameter(Mandatory = $false)]
 		[Switch]$DisableRebase
 	)
 	Begin {
-		Write-Debug -Message 'Entered Function: Create-GHERepo'
+		Write-Debug -Message "Entered function: New-GHRepo"
 
-		If ($Organization -ne $null) {
-			Write-Debug -Message "Organization is defined, creating an Organization repo"
-			$QualifiedUrl = "https://$ComputerName/api/v3/orgs/$Organization/repos"
-			Write-Debug -Message "Qualified URL is: $QualifiedUrl"
+		If ($PSCmdlet.ParameterSetName -eq 'GHE_API') {
+			Write-Debug -Message 'GHE_API Parameter Set'
+			$BaseUrl = "https://$ComputerName/api/v3"
+			Write-Debug -Message "BaseUrl is: $BaseUrl"
 		}
 		Else {
-			Write-Debug -Message "Organization is not defined, creating a User repo"
-			$QualifiedUrl = "https://$ComputerName/api/v3/user/repos"
-			Write-Debug -Message "Qualified URL is: $QualifiedUrl"
+			Write-Debug -Message 'Default Parameter Set (github.com API)'
+			$BaseUrl = 'https://api.github.com'
+			Write-Debug -Message "BaseUrl is: $BaseUrl"
 		}
+
+		$Header = @{
+			"Accept" = "$APIVersionHeader"
+		}
+		If ($PersonalAccessToken) {
+			$Header.Add('Authorization',"token $PersonalAccessToken")
+		}
+		If ($OneTimePasscode) {
+			$Header.Add('X-GitHub-OTP',$OneTimePasscode)
+		}
+		Write-Debug -Message "Current value of Headers is: $(Out-String -InputObject $Header)"
 	}
 	Process {
 		Foreach ($Repo in $Name) {
@@ -1411,22 +1458,71 @@ function New-GHERepo {
 				'allow_merge_commit' = $(If ($DisableMerge -eq $false){ $true } Else { $false })
 				'allow_rebase_merge' = $(If ($DisableRebase -eq $false){ $true } Else { $false })
 			}
+
 			If ($TeamId -ne 0){
 				Write-Debug -Message "TeamId is: $TeamId"
 				$Body.Add('team_id', $TeamId)
 			}
-			Write-Debug -Message "Request Body: $(Out-String -InputObject $Body)"
 
 			$JSONData = ConvertTo-Json -InputObject $Body
 			Write-Debug -Message "JSON data: $JSONData"
 
-			Write-Debug -Message "Calling REST API"
-			$Result = Invoke-RestMethod -Method POST -Uri $QualifiedUrl -Body $JSONData -Authentication Basic -Credential $Credential -SkipCertificateCheck
-			Write-Debug -Message "Result of REST request for repo ${repo}: $(Out-String -InputObject $Result)"
+			If ($PSCmdlet.ParameterSetName -eq 'DotCom_API') {
+				If ($Credential) {
+					If ([String]::IsNullOrEmpty($Organization)) {
+						Write-Debug -Message "Organization is not defined, creating a User repo with Basic Authentication using endpoint: $BaseUrl/user/repos"
+						$Result = Invoke-RestMethod -Method POST -Uri "$BaseUrl/user/repos" -Headers $Header -Body $JSONData -Authentication Basic -Credential $Credential
+						Write-Output -InputObject $Result
+					}
+					Else {
+						Write-Debug -Message "Organization is defined, creating an Organization repo with Basic Authentication using endpoint: $BaseUrl/orgs/$Organization/repos"
+						$Result = Invoke-RestMethod -Method POST -Uri "$BaseUrl/orgs/$Organization/repos" -Headers $Header -Body $JSONData -Authentication Basic -Credential $Credential
+						Write-Output -InputObject $Result
+					}
+				}
+				If ($PersonalAccessToken) {
+					If ([String]::IsNullOrEmpty($Organization)) {
+						Write-Debug -Message "Organization is not defined, creating a User repo with a PAT using endpoint: $BaseUrl/user/repos"
+						$Result = Invoke-RestMethod -Method POST -Uri "$BaseUrl/user/repos" -Headers $Header -Body $JSONData
+						Write-Output -InputObject $Result
+					}
+					Else {
+						Write-Debug -Message "Organization is defined, creating an Organization repo with a PAT using endpoint: $BaseUrl/orgs/$Organization/repos"
+						$Result = Invoke-RestMethod -Method POST -Uri "$BaseUrl/orgs/$Organization/repos" -Headers $Header -Body $JSONData
+						Write-Output -InputObject $Result
+					}
+				}
+			}
+			If ($PSCmdlet.ParameterSetName -eq 'GHE_API') {
+				If ($Credential) {
+					If ([String]::IsNullOrEmpty($Organization)) {
+						Write-Debug -Message "Organization is not defined, creating a User repo with Basic Authentication using endpoint: $BaseUrl/user/repos"
+						$Result = Invoke-RestMethod -Method POST -Uri "$BaseUrl/user/repos" -Headers $Header -Body $JSONData -Authentication Basic -Credential $Credential -SkipCertificateCheck
+						Write-Output -InputObject $Result
+					}
+					Else {
+						Write-Debug -Message "Organization is defined, creating an Organization repo with Basic Authentication using endpoint: $BaseUrl/orgs/$Organization/repos"
+						$Result = Invoke-RestMethod -Method POST -Uri "$BaseUrl/orgs/$Organization/repos" -Headers $Header -Body $JSONData -Authentication Basic -Credential $Credential -SkipCertificateCheck
+						Write-Output -InputObject $Result
+					}
+				}
+				If ($PersonalAccessToken) {
+					If ([String]::IsNullOrEmpty($Organization)) {
+						Write-Debug -Message "Organization is not defined, creating a User repo with a PAT using endpoint: $BaseUrl/user/repos"
+						$Result = Invoke-RestMethod -Method POST -Uri "$BaseUrl/user/repos" -Headers $Header -Body $JSONData -SkipCertificateCheck
+						Write-Output -InputObject $Result
+					}
+					Else {
+						Write-Debug -Message "Organization is defined, creating an Organization repo with a PAT using endpoint: $BaseUrl/orgs/$Organization/repos"
+						$Result = Invoke-RestMethod -Method POST -Uri "$BaseUrl/orgs/$Organization/repos" -Headers $Header -Body $JSONData -SkipCertificateCheck
+						Write-Output -InputObject $Result
+					}
+				}
+			}
 		}
 	}
 	End {
-
+		Write-Debug -Message "Exited function: New-GHRepo"
 	}
 }
 function Get-GHRepo {
