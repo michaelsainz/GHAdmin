@@ -1307,7 +1307,6 @@ function Remove-GHTeam {
 		Write-Debug -Message 'Exiting function: Remove-GHTeam'
 	}
 }
-
 function New-GHRepo {
 	<#
 	.SYNOPSIS
@@ -1641,14 +1640,14 @@ function Get-GHRepo {
 		Write-Debug -Message "Exited function: Get-GHRepo"
 	}
 }
-function Remove-GHERepo {
+function Remove-GHRepo {
 	<#
 	.SYNOPSIS
 		Removes a repository
 	.DESCRIPTION
 		This cmdlet removes/deletes a repository
 	.EXAMPLE
-		PS ~/ Remove-GHERepo -ComputerName myGHEInstance.myhost.com -Credential (Get-Credential) -Name MyNewRepo -Owner MonaLisa
+		PS ~/ Remove-GHRepo -ComputerName myGHEInstance.myhost.com -Credential (Get-Credential) -Name MyNewRepo -Owner MonaLisa
 		This command connects to the myGHEInstance.myhost.com instance and prompts for credentials, which then authenticates you and removes the repository named MyNewRepo which is owned by MonaLisa.
 	.INPUTS
 		None
@@ -1658,37 +1657,103 @@ function Remove-GHERepo {
 	.NOTES
 		None
 	#>
-	[CmdletBinding()]
+	[CmdletBinding(DefaultParameterSetName='DotCom_API')]
 	Param(
 		# URL of the API end point
-		[Parameter(Mandatory = $true)]
+		[Parameter(Mandatory = $false, ParameterSetName='GHE_API')]
 		[String]$ComputerName,
 
 		# Credential object for authentication against the GHE API
-		[Parameter(Mandatory = $true)]
+		[Parameter(Mandatory = $false, ParameterSetName='DotCom_API')]
+		[Parameter(Mandatory = $true, ParameterSetName='Auth_Basic')]
+		[Parameter(Mandatory = $false, ParameterSetName='GHE_API')]
 		[PSCredential]$Credential,
 
+		# Personal Access Token to authenticate against GitHub.com
+		[Parameter(Mandatory = $false, ParameterSetName='DotCom_API')]
+		[Parameter(Mandatory = $true, ParameterSetName='Auth_PAT')]
+		[Parameter(Mandatory = $false, ParameterSetName='GHE_API')]
+		[Alias('PAT')]
+		[String]$PersonalAccessToken,
+
 		# Name of the repository
-		[Parameter(Mandatory = $true)]
+		[Parameter(Mandatory = $true, ParameterSetName='DotCom_API')]
+		[Parameter(Mandatory = $true, ParameterSetName='Auth_PAT')]
+		[Parameter(Mandatory = $true, ParameterSetName='GHE_API')]
 		[String[]]$Name,
 
-		# Username/login for the user/organization
-		[Parameter(Mandatory = $true)]
-		[String]$Owner
+		# Custom API Version Header
+		[Parameter(Mandatory = $false, ParameterSetName='DotCom_API')]
+		[Parameter(Mandatory = $false, ParameterSetName='Auth_PAT')]
+		[Parameter(Mandatory = $false, ParameterSetName='GHE_API')]
+		[String]$APIVersionHeader = 'application/vnd.github.v3+json',
+
+		# One-Time Passcode for two-factor authentication
+		[Parameter(Mandatory = $false, ParameterSetName='DotCom_API')]
+		[Parameter(Mandatory=$false, ParameterSetName='Auth_Basic')]
+		[Alias('OTP')]
+		[String]$OneTimePasscode
 	)
 	Begin {
-		Write-Debug -Message 'Entered Function: Remove-GHERepo'
+		Write-Debug -Message "Entered function: Remove-GHRepo"
+
+		If ($PSCmdlet.ParameterSetName -eq 'GHE_API') {
+			Write-Debug -Message 'GHE_API Parameter Set'
+			$BaseUrl = "https://$ComputerName/api/v3"
+			Write-Debug -Message "BaseUrl is: $BaseUrl"
+		}
+		Else {
+			Write-Debug -Message 'Default Parameter Set (github.com API)'
+			$BaseUrl = 'https://api.github.com'
+			Write-Debug -Message "BaseUrl is: $BaseUrl"
+		}
+
+		$Header = @{
+			"Accept" = "$APIVersionHeader"
+		}
+		If ($PersonalAccessToken) {
+			$Header.Add('Authorization',"token $PersonalAccessToken")
+		}
+
+		If ($OneTimePasscode) {
+			$Header.Add('X-GitHub-OTP',$OneTimePasscode)
+		}
+
+		Write-Debug -Message "Current value of Headers is: $(Out-String -InputObject $Header)"
 	}
 	Process {
 		Foreach ($Repo in $Name) {
-			Write-Debug -Message "Removing repository: $Repo"
-
-			$WebResult = Invoke-RestMethod -Uri "https://$ComputerName/api/v3/repos/$Owner/$Repo" -Method DELETE -Authentication Basic -Credential $Cred -SkipCertificateCheck
-			Write-Debug -Message "Result of REST request for the removal of the repository: $(Out-String -InputObject $WebResult)"
+			Write-Debug -Message "Current ParameterSet: $($PSCmdlet.ParameterSetName)"
+			$RepoResolvedName = Resolve-GHRepoName -Repository $Repo
+			Write-Debug -Message "Split $Repo string to $($RepoResolvedName.Owner) & $($RepoResolvedName.Name)"
+			If ($PSCmdlet.ParameterSetName -eq 'DotCom_API') {
+				If ($Credential) {
+					Write-Debug -Message "Removing repository using Basic Authentication: $Repo"
+					$Result = Invoke-RestMethod -Uri "$BaseUrl/repos/$($RepoResolvedName.Owner)/$($RepoResolvedName.Name)" -Headers $Header -Method DELETE -Authentication Basic -Credential $Credential
+					Write-Output -InputObject $Result
+				}
+				ElseIf ($PersonalAccessToken) {
+					Write-Debug -Message "Removing repository using a PAT: $Repo"
+					$Result = Invoke-RestMethod -Uri "$BaseUrl/repos/$($RepoResolvedName.Owner)/$($RepoResolvedName.Name)" -Headers $Header -Method DELETE
+					Write-Output -InputObject $Result
+				}
+			}
+			ElseIf ($PSCmdlet.ParameterSetName -eq 'GHE_API') {
+				If ($Credential) {
+					Write-Debug -Message "Removing repository using Basic Authentication: $Repo"
+					$Result = Invoke-RestMethod -Uri "$BaseUrl/repos/$($RepoResolvedName.Owner)/$($RepoResolvedName.Name)" -Headers $Header -Method DELETE -Authentication Basic -Credential $Credential -SkipCertificateCheck
+					Write-Output -InputObject $Result
+				}
+				ElseIf ($PersonalAccessToken) {
+					Write-Debug -Message "Removing repository using a PAT: $Repo"
+					$Result = Invoke-RestMethod -Uri "$BaseUrl/repos/$($RepoResolvedName.Owner)/$($RepoResolvedName.Name)" -Headers $Header -Method DELETE -SkipCertificateCheck
+					Write-Output -InputObject $Result
+				}
+			}
 		}
 	}
 	End {
-		Write-Debug -Message 'Exited Function: Remove-GHERepo'
+		Write-Debug -Message 'Exited Function: Remove-GHRepo'
 	}
 }
 function Set-GHERepoProperty {
