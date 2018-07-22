@@ -108,6 +108,7 @@ function New-GHEOrganization {
 
 		# One-Time Passcode for two-factor authentication
 		[Parameter(Mandatory=$false, ParameterSetName='Auth_Basic')]
+		[Alias('OTP')]
 		[String]$OneTimePasscode,
 
 		# Custom API Version Header
@@ -223,6 +224,7 @@ function Get-GHOrganization {
 		# One-Time Passcode for two-factor authentication
 		[Parameter(Mandatory = $false, ParameterSetName='DotCom_API')]
 		[Parameter(Mandatory=$false, ParameterSetName='Auth_Basic')]
+		[Alias('OTP')]
 		[String]$OneTimePasscode,
 
 		# Name/handle of the organization
@@ -329,6 +331,7 @@ function New-GHEUser {
 
 		# One-Time Passcode for two-factor authentication
 		[Parameter(Mandatory=$false, ParameterSetName='Auth_Basic')]
+		[Alias('OTP')]
 		[String]$OneTimePasscode,
 
 		# Username/login of the user
@@ -431,6 +434,7 @@ function Get-GHUser {
 		# One-Time Passcode for two-factor authentication
 		[Parameter(Mandatory = $false, ParameterSetName='DotCom_API')]
 		[Parameter(Mandatory=$false, ParameterSetName='Auth_Basic')]
+		[Alias('OTP')]
 		[String]$OneTimePasscode,
 
 		# Fully qualified name of the team
@@ -539,6 +543,7 @@ function Remove-GHEUser {
 
 		# One-Time Passcode for two-factor authentication
 		[Parameter(Mandatory=$false, ParameterSetName='Auth_Basic')]
+		[Alias('OTP')]
 		[String]$OneTimePasscode,
 
 		# Username/login of the user
@@ -622,6 +627,7 @@ function Suspend-GHEUser {
 
 		# One-Time Passcode for two-factor authentication
 		[Parameter(Mandatory=$false, ParameterSetName='Auth_Basic')]
+		[Alias('OTP')]
 		[String]$OneTimePasscode,
 
 		# Username/login of the user
@@ -704,6 +710,7 @@ function Resume-GHEUser {
 
 		# One-Time Passcode for two-factor authentication
 		[Parameter(Mandatory=$false, ParameterSetName='Auth_Basic')]
+		[Alias('OTP')]
 		[String]$OneTimePasscode,
 
 		# Username/login of the user
@@ -786,6 +793,7 @@ function Rename-GHEUser {
 
 		# One-Time Passcode for two-factor authentication
 		[Parameter(Mandatory=$false, ParameterSetName='Auth_Basic')]
+		[Alias('OTP')]
 		[String]$OneTimePasscode,
 
 		# Username/login of the user
@@ -884,6 +892,7 @@ function Get-GHTeam {
 		# One-Time Passcode for two-factor authentication
 		[Parameter(Mandatory = $false, ParameterSetName='DotCom_API')]
 		[Parameter(Mandatory=$false, ParameterSetName='Auth_Basic')]
+		[Alias('OTP')]
 		[String]$OneTimePasscode,
 
 		# Fully qualified name of the team
@@ -1050,6 +1059,7 @@ function New-GHTeam {
 		# One-Time Passcode for two-factor authentication
 		[Parameter(Mandatory = $false, ParameterSetName='DotCom_API')]
 		[Parameter(Mandatory = $false, ParameterSetName='Auth_Basic')]
+		[Alias('OTP')]
 		[String]$OneTimePasscode,
 
 		# User/handle of the organization
@@ -1189,6 +1199,7 @@ function Remove-GHTeam {
 		# One-Time Passcode for two-factor authentication
 		[Parameter(Mandatory = $false, ParameterSetName='DotCom_API')]
 		[Parameter(Mandatory = $false, ParameterSetName='Auth_Basic')]
+		[Alias('OTP')]
 		[String]$OneTimePasscode,
 
 		[Parameter(Mandatory = $true, ParameterSetName='DotCom_API')]
@@ -1352,6 +1363,7 @@ function New-GHRepo {
 		# One-Time Passcode for two-factor authentication
 		[Parameter(Mandatory = $false, ParameterSetName='DotCom_API')]
 		[Parameter(Mandatory = $false, ParameterSetName='Auth_Basic')]
+		[Alias('OTP')]
 		[String]$OneTimePasscode,
 
 		[Parameter(Mandatory = $true, ParameterSetName='DotCom_API')]
@@ -1575,6 +1587,7 @@ function Get-GHRepo {
 		# One-Time Passcode for two-factor authentication
 		[Parameter(Mandatory = $false, ParameterSetName='DotCom_API')]
 		[Parameter(Mandatory=$false, ParameterSetName='Auth_Basic')]
+		[Alias('OTP')]
 		[String]$OneTimePasscode
 	)
 	Begin {
