@@ -1741,24 +1741,24 @@ function Remove-GHRepo {
 			Write-Debug -Message "Split $Repo string to $($RepoResolvedName.Owner) & $($RepoResolvedName.Name)"
 			If ($PSCmdlet.ParameterSetName -eq 'DotCom_API') {
 				If ($Credential) {
-					Write-Debug -Message "Removing repository using Basic Authentication: $Repo"
+					Write-Debug -Message "Updating repository property using Basic Authentication: $Repo"
 					$Result = Invoke-RestMethod -Uri "$BaseUrl/repos/$($RepoResolvedName.Owner)/$($RepoResolvedName.Name)" -Headers $Header -Method DELETE -Authentication Basic -Credential $Credential
 					Write-Output -InputObject $Result
 				}
 				ElseIf ($PersonalAccessToken) {
-					Write-Debug -Message "Removing repository using a PAT: $Repo"
+					Write-Debug -Message "Updating repository property using a PAT: $Repo"
 					$Result = Invoke-RestMethod -Uri "$BaseUrl/repos/$($RepoResolvedName.Owner)/$($RepoResolvedName.Name)" -Headers $Header -Method DELETE
 					Write-Output -InputObject $Result
 				}
 			}
 			ElseIf ($PSCmdlet.ParameterSetName -eq 'GHE_API') {
 				If ($Credential) {
-					Write-Debug -Message "Removing repository using Basic Authentication: $Repo"
+					Write-Debug -Message "Updating repository property using Basic Authentication: $Repo"
 					$Result = Invoke-RestMethod -Uri "$BaseUrl/repos/$($RepoResolvedName.Owner)/$($RepoResolvedName.Name)" -Headers $Header -Method DELETE -Authentication Basic -Credential $Credential -SkipCertificateCheck
 					Write-Output -InputObject $Result
 				}
 				ElseIf ($PersonalAccessToken) {
-					Write-Debug -Message "Removing repository using a PAT: $Repo"
+					Write-Debug -Message "Updating repository property using a PAT: $Repo"
 					$Result = Invoke-RestMethod -Uri "$BaseUrl/repos/$($RepoResolvedName.Owner)/$($RepoResolvedName.Name)" -Headers $Header -Method DELETE -SkipCertificateCheck
 					Write-Output -InputObject $Result
 				}
@@ -1769,18 +1769,18 @@ function Remove-GHRepo {
 		Write-Debug -Message 'Exited Function: Remove-GHRepo'
 	}
 }
-function Set-GHERepoProperty {
+function Set-GHRepoProperty {
 	<#
 	.SYNOPSIS
 		Sets properties on a repository
 	.DESCRIPTION
 		This cmdlet sets specific properties on a repo
 	.EXAMPLE
-		PS ~/ Set-GHERepoProperty -ComputerName myGHEInstance.myhost.com -Credential (Get-Credential) -Owner MonaLisa -Name MyNewRepo -Property 'default_branch' -Value 'dev_branch'
+		PS ~/ Set-GHRepoProperty -ComputerName myGHEInstance.myhost.com -Credential (Get-Credential) -Owner MonaLisa -Name MyNewRepo -Property 'default_branch' -Value 'dev_branch'
 		This command connects to the myGHEInstance.myhost.com instance and prompts for credentials, which then authenticates you and sets the default branch on the repository to dev_branch.
 	.EXAMPLE
 		PS C:\ $MyHashTable = @{description = 'This is a new description for my repo!';homepage = 'https://mynewhomepage.net'}
-		PS ~/ Set-GHERepoProperty -ComputerName myGHEInstance.myhost.com -Credential (Get-Credential) -Owner MonaLisa -Name MyNewRepo -HashTable $MyHashTable
+		PS ~/ Set-GHRepoProperty -ComputerName myGHEInstance.myhost.com -Credential (Get-Credential) -Owner MonaLisa -Name MyNewRepo -HashTable $MyHashTable
 		The first command creates a PowerShell hashtable with keys and values of repo properties (description & homepage) and stores them in the $MyHashTable object. The second command connects to the myGHEInstance.myhost.com instance and prompts for credentials, which then authenticates you and passes the hashtable which contains the properties to set.
 	.INPUTS
 		None
@@ -1790,22 +1790,40 @@ function Set-GHERepoProperty {
 	.NOTES
 		None
 	#>
-	[CmdletBinding()]
+	[CmdletBinding(DefaultParameterSetName='DotCom_API')]
 	Param(
 		# URL of the API end point
-		[Parameter(Mandatory = $true)]
+		[Parameter(Mandatory = $false, ParameterSetName='GHE_API')]
 		[String]$ComputerName,
 
 		# Credential object for authentication against the GHE API
-		[Parameter(Mandatory = $true)]
+		[Parameter(Mandatory = $false, ParameterSetName='DotCom_API')]
+		[Parameter(Mandatory = $true, ParameterSetName='Auth_Basic')]
+		[Parameter(Mandatory = $false, ParameterSetName='GHE_API')]
 		[PSCredential]$Credential,
 
-		# Handle/Owner of the repository
-		[Parameter(Mandatory = $true)]
-		[String]$Owner,
+		# Personal Access Token to authenticate against GitHub.com
+		[Parameter(Mandatory = $false, ParameterSetName='DotCom_API')]
+		[Parameter(Mandatory = $true, ParameterSetName='Auth_PAT')]
+		[Parameter(Mandatory = $false, ParameterSetName='GHE_API')]
+		[Alias('PAT')]
+		[String]$PersonalAccessToken,
 
-		# Name of the repository
-		[Parameter(Mandatory = $true)]
+		# Custom API Version Header
+		[Parameter(Mandatory = $false, ParameterSetName='DotCom_API')]
+		[Parameter(Mandatory = $false, ParameterSetName='Auth_PAT')]
+		[Parameter(Mandatory = $false, ParameterSetName='GHE_API')]
+		[String]$APIVersionHeader = 'application/vnd.github.v3+json',
+
+		# One-Time Passcode for two-factor authentication
+		[Parameter(Mandatory = $false, ParameterSetName='DotCom_API')]
+		[Parameter(Mandatory = $false, ParameterSetName='Auth_Basic')]
+		[Alias('OTP')]
+		[String]$OneTimePasscode,
+
+		[Parameter(Mandatory = $true, ParameterSetName='DotCom_API')]
+		[Parameter(Mandatory = $true, ParameterSetName='Auth_PAT')]
+		[Parameter(Mandatory = $true, ParameterSetName='GHE_API')]
 		[String[]]$Name,
 
 		# The hashtable that has the properties and values to update on the repository
@@ -1821,8 +1839,117 @@ function Set-GHERepoProperty {
 		[String]$Value
 	)
 	Begin {
-		Write-Debug -Message 'Entered Function: Set-GHERepoProperty'
+		Write-Debug -Message "Entered function: Set-GHRepoProperty"
+
+		If ($PSCmdlet.ParameterSetName -eq 'GHE_API') {
+			Write-Debug -Message 'GHE_API Parameter Set'
+			$BaseUrl = "https://$ComputerName/api/v3"
+			Write-Debug -Message "BaseUrl is: $BaseUrl"
+		}
+		Else {
+			Write-Debug -Message 'Default Parameter Set (github.com API)'
+			$BaseUrl = 'https://api.github.com'
+			Write-Debug -Message "BaseUrl is: $BaseUrl"
+		}
+
+		$Header = @{
+			"Accept" = "$APIVersionHeader"
+		}
+		If ($PersonalAccessToken) {
+			$Header.Add('Authorization',"token $PersonalAccessToken")
+		}
+		If ($OneTimePasscode) {
+			$Header.Add('X-GitHub-OTP',$OneTimePasscode)
+		}
+		Write-Debug -Message "Current value of Headers is: $(Out-String -InputObject $Header)"
 	}
+	Process {
+		If ($Data) {
+			Write-Debug -Message "Updating repository properties from a hashtable"
+			Foreach ($Repo in $Name) {
+				Write-Debug -Message "Current ParameterSet: $($PSCmdlet.ParameterSetName)"
+				$RepoResolvedName = Resolve-GHRepoName -Repository $Repo
+				Write-Debug -Message "Split $Repo string to $($RepoResolvedName.Owner) & $($RepoResolvedName.Name)"
+
+				If (($Data.ContainsKey('name')) -eq $false) {
+					Write-Debug -Message '$Data does not have a name property, adding property.'
+					$Data.Add('name', $Repo)
+				}
+
+				$Body = ConvertTo-Json -InputObject $Data
+				Write-Debug -Message "Current value of JSON: $(Out-String -InputObject $Body)"
+
+				If ($PSCmdlet.ParameterSetName -eq 'DotCom_API') {
+					If ($Credential) {
+						Write-Debug -Message "Updating repository property using Basic Authentication: $Repo"
+						$Result = Invoke-RestMethod -Uri "$BaseUrl/repos/$($RepoResolvedName.Owner)/$($RepoResolvedName.Name)" -Headers $Header -Body $Body -Method PATCH -Authentication Basic -Credential $Credential
+						Write-Output -InputObject $Result
+					}
+					If ($PersonalAccessToken) {
+						Write-Debug -Message "Updating repository property using a PAT: $Repo"
+						$Result = Invoke-RestMethod -Uri "$BaseUrl/repos/$($RepoResolvedName.Owner)/$($RepoResolvedName.Name)" -Headers $Header -Body $Body -Method PATCH
+						Write-Output -InputObject $Result
+					}
+				}
+				ElseIf ($PSCmdlet.ParameterSetName -eq 'GHE_API') {
+					If ($Credential) {
+						Write-Debug -Message "Updating repository property using Basic Authentication: $Repo"
+						$Result = Invoke-RestMethod -Uri "$BaseUrl/repos/$($RepoResolvedName.Owner)/$($RepoResolvedName.Name)" -Headers $Header -Body $Body -Method PATCH -Authentication Basic -Credential $Credential -SkipCertificateCheck
+						Write-Output -InputObject $Result
+					}
+					If ($PersonalAccessToken) {
+						Write-Debug -Message "Updating repository property using a PAT: $Repo"
+						$Result = Invoke-RestMethod -Uri "$BaseUrl/repos/$($RepoResolvedName.Owner)/$($RepoResolvedName.Name)" -Headers $Header -Body $Body -Method PATCH -SkipCertificateCheck
+						Write-Output -InputObject $Result
+					}
+				}
+			}
+		}
+		Else {
+			Write-Debug -Message 'Updating single property on the repository'
+			Foreach ($Repo in $Name) {
+				Write-Debug -Message "Current ParameterSet: $($PSCmdlet.ParameterSetName)"
+				$RepoResolvedName = Resolve-GHRepoName -Repository $Repo
+				Write-Debug -Message "Split $Repo string to $($RepoResolvedName.Owner) & $($RepoResolvedName.Name)"
+
+				$PSPayload = @{
+					'name' = $RepoResolvedName.Name
+					$Property = $Value
+				}
+				Write-Debug -Message "Value of `$PSPayload: $(Out-String -InputObject $PSPayload)"
+
+				$Body = ConvertTo-Json -InputObject $PSPayload
+				Write-Debug -Message "Value of JSON object: $(Out-String -InputObject $Body)"
+
+				If ($PSCmdlet.ParameterSetName -eq 'DotCom_API') {
+					If ($Credential) {
+						Write-Debug -Message "Updating repository property using Basic Authentication: $Repo"
+						$Result = Invoke-RestMethod -Uri "$BaseUrl/repos/$($RepoResolvedName.Owner)/$($RepoResolvedName.Name)" -Headers $Header -Body $Body -Method PATCH -Authentication Basic -Credential $Credential
+						Write-Output -InputObject $Result
+					}
+					If ($PersonalAccessToken) {
+						Write-Debug -Message "Updating repository property using a PAT: $Repo"
+						$Result = Invoke-RestMethod -Uri "$BaseUrl/repos/$($RepoResolvedName.Owner)/$($RepoResolvedName.Name)" -Headers $Header -Body $Body -Method PATCH
+						Write-Output -InputObject $Result
+					}
+				}
+				ElseIf ($PSCmdlet.ParameterSetName -eq 'GHE_API') {
+					If ($Credential) {
+						Write-Debug -Message "Updating repository property using Basic Authentication: $Repo"
+						$Result = Invoke-RestMethod -Uri "$BaseUrl/repos/$($RepoResolvedName.Owner)/$($RepoResolvedName.Name)" -Headers $Header -Body $Body -Method PATCH -Authentication Basic -Credential $Credential -SkipCertificateCheck
+						Write-Output -InputObject $Result
+					}
+					If ($PersonalAccessToken) {
+						Write-Debug -Message "Updating repository property using a PAT: $Repo"
+						$Result = Invoke-RestMethod -Uri "$BaseUrl/repos/$($RepoResolvedName.Owner)/$($RepoResolvedName.Name)" -Headers $Header -Body $Body -Method PATCH -SkipCertificateCheck
+						Write-Output -InputObject $Result
+					}
+				}
+
+			}
+		}
+	}
+	<#
 	Process {
 		If ($Data) {
 			Write-Debug -Message 'Updating the repo using the bulk data hashtable method'
@@ -1860,7 +1987,7 @@ function Set-GHERepoProperty {
 				Write-Debug -Message "Result of REST request for repo ${Repo}: $(Out-String -InputObject $WebResult)"
 			}
 		}
-	}
+	} #>
 	End{
 		Write-Debug -Message 'Exited Function: Set-GHERepoProperty'
 	}
