@@ -1949,47 +1949,8 @@ function Set-GHRepoProperty {
 			}
 		}
 	}
-	<#
-	Process {
-		If ($Data) {
-			Write-Debug -Message 'Updating the repo using the bulk data hashtable method'
-			Foreach ($Repo in $Name) {
-				Write-Debug -Message "Setting properties on repo: $Repo"
-
-				If (($Data.ContainsKey('name')) -eq $false) {
-					Write-Debug -Message '$Data does not have a name property, adding property.'
-					$Data.Add('name', $Repo)
-				}
-				Write-Debug -Message "Value of `$Data object: $(Out-String -InputObject $Data)"
-
-				$Body = ConvertTo-Json -InputObject $Data
-				Write-Debug -Message "Current value of JSON: $(Out-String -InputObject $Body)"
-
-				$WebResult = Invoke-RestMethod -Uri "https://$ComputerName/api/v3/repos/$Owner/$Repo" -Method PATCH -Body $Body -Authentication Basic -Credential $Credential -SkipCertificateCheck
-				Write-Debug -Message "Result of REST request for repo ${Repo}: $(Out-String -InputObject $WebResult)"
-			}
-		}
-		Else {
-			Write-Debug -Message 'Updating the repo using the single property method'
-			Foreach ($Repo in $Name) {
-				Write-Debug -Message "Setting property `"$Property`" to `"$Value`" on repo: $Repo"
-
-				$PSPayload = @{
-					'name' = $Repo
-					$Property = $Value
-				}
-				Write-Debug -Message "Value of `$PSPayload: $(Out-String -InputObject $PSPayload)"
-
-				$Body = ConvertTo-Json -InputObject $PSPayload
-				Write-Debug -Message "Value of JSON object: $(Out-String -InputObject $Body)"
-
-				$WebResult = Invoke-RestMethod -Uri "https://$ComputerName/api/v3/repos/$Owner/$Repo" -Method PATCH -Body $Body -Authentication Basic -Credential $Credential -SkipCertificateCheck
-				Write-Debug -Message "Result of REST request for repo ${Repo}: $(Out-String -InputObject $WebResult)"
-			}
-		}
-	} #>
 	End{
-		Write-Debug -Message 'Exited Function: Set-GHERepoProperty'
+		Write-Debug -Message 'Exited Function: Set-GHRepoProperty'
 	}
 }
 function Add-GHOrgMembership {
@@ -2081,9 +2042,6 @@ function Add-GHOrgMembership {
 	Process {
 		Foreach ($Name in $User) {
 			Write-Debug -Message "Current ParameterSet: $($PSCmdlet.ParameterSetName)"
-
-			$QualifiedUrl = "https://$ComputerName/api/v3/orgs/$Organization/memberships/$Name"
-			Write-Debug -Message "Qualified URL is: $QualifiedUrl"
 
 			$Body = @{
 				'role' = $Role
