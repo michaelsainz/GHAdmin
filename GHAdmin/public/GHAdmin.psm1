@@ -2630,8 +2630,8 @@ function Start-GHRepoMigration {
 	Param (
 		# The Personal Access Token with admin:org rights on github.com
 		[Parameter(Mandatory=$true)]
-		[Alias('GHPAT')]
-		[String]$GHPersonalAccessToken,
+		[Alias('PAT')]
+		[String]$PersonalAccessToken,
 
 		# Parameter help description
 		[Parameter(Mandatory=$false)]
@@ -2643,11 +2643,16 @@ function Start-GHRepoMigration {
 	)
 	Begin {
 		$Headers = @{
-			'Authorization' = "token $GHPersonalAccessToken"
+			'Authorization' = "token $PersonalAccessToken"
 			'Accept' = 'application/vnd.github.wyandotte-preview+json'
 		}
 		Write-Debug -Message "Header Body: $(Out-String -InputObject $Headers)"
-		$Org = Resolve-GHRepoName -Repository $Repositories[0]
+
+		Write-Debug -Message "Resolving repository names"
+		$RepoList = Resolve-GHRepoName -Repository $Repositories
+
+		# We need to support checking for multiple organizations and handle that better
+		$Org = $RepoList.Owner[0]
 	}
 	Process {
 		$Body = @{
@@ -2657,8 +2662,8 @@ function Start-GHRepoMigration {
 		$Body = ConvertTo-Json -InputObject $Body
 		Write-Debug -Message "Data Body: $(Out-String -InputObject $Body)"
 
-		Write-Debug -Message "Calling API: https://api.github.com/orgs/$($Org.Owner)/migrations"
-		Invoke-RestMethod -Uri "https://api.github.com/orgs/$($Org.Owner)/migrations" -Headers $Headers -Body $Body -Method POST
+		Write-Debug -Message "Calling API: https://api.github.com/orgs/$Org/migrations"
+		Invoke-RestMethod -Uri "https://api.github.com/orgs/$Org/migrations" -Headers $Headers -Body $Body -Method POST
 	}
 	End {
 		Write-Debug -Message 'Exited Function: Start-GHRepoMigration'
