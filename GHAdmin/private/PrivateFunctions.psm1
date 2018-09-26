@@ -1,6 +1,6 @@
 
 function Resolve-GHRepoName {
-	<#
+    <#
 	.SYNOPSIS
 		Short description
 	.DESCRIPTION
@@ -22,45 +22,45 @@ function Resolve-GHRepoName {
 	.FUNCTIONALITY
 		The functionality that best describes this cmdlet
 	#>
-	[CmdletBinding()]
-	Param (
-		# Specifies the string which contains an owner name and a repo name
-		[Parameter(Mandatory=$true)]
-		[String]$Repository
-	)
+    [CmdletBinding()]
+    Param (
+        # Specifies the string which contains an owner name and a repo name
+        [Parameter(Mandatory = $true)]
+        [Alias('Repo')]
+        [String[]]$Repository
+    )
 
-	Begin {
-		Write-Debug -Message 'Entered function: Resolve-GHRepoName'
-	}
+    Begin {
+        Write-Debug -Message 'Entered function: Resolve-GHRepoName'
+    }
 
-	Process {
-		Foreach ($Repo in $Repository) {
-			Write-Debug -Message "Determining if there is a forward slash in the string: $Repo"
-			If ($Repo -match '/') {
-				Write-Debug -Message 'String has a forward slash, splitting owner/name'
+    Process {
+        Foreach ($Repo in $Repository) {
+            Write-Debug -Message "Determining if there is a forward slash in the string: $Repo"
+            If ($Repo -match '/') {
+                Write-Debug -Message 'String has a forward slash, splitting owner/name'
 
-				$RepoOwner = $Repo.Split('/')[0]
-				Write-Debug -Message "Owner name is: $RepoOwner"
+                $RepoOwner = $Repo.Split('/')[0]
+                Write-Debug -Message "Owner name is: $RepoOwner"
 
-				$RepoName = $Repo.Split('/')[1]
-				Write-Debug -Message "Repo name is: $RepoName"
+                $RepoName = $Repo.Split('/')[1]
+                Write-Debug -Message "Repo name is: $RepoName"
 
-				Write-Debug -Message "Adding record to PSObject"
-				New-Object -TypeName PSObject -Property @{
-					'Name' = $RepoName
-					'Owner' = $RepoOwner
-				}
-			}
-			Else {
-				Write-Debug -Message "Could not match a forward slash in the string: $Repo"
-				Write-Output "No forward slash matched in: $Repo"
-			}
-		}
-		Write-Debug -Message "Returning hashtable with values: $(Out-String -InputObject $RepoList)"
-	}
+                Write-Debug -Message "Adding record to PSObject"
+                New-Object -TypeName PSObject -Property @{
+                    'Name'  = $RepoName
+                    'Owner' = $RepoOwner
+                }
+            } Else {
+                Write-Debug -Message "Could not match a forward slash in the string: $Repo"
+                Write-Output "No forward slash matched in: $Repo"
+            }
+        }
+        Write-Debug -Message "Returning hashtable with values: $(Out-String -InputObject $RepoList)"
+    }
 
-	End {
-		Write-Output -InputObject $RepoList
-		Write-Debug -Message 'Exited function: Resolve-GHRepoName'
-	}
+    End {
+        Write-Output -InputObject $RepoList
+        Write-Debug -Message 'Exited function: Resolve-GHRepoName'
+    }
 }
