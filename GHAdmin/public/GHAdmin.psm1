@@ -2399,8 +2399,8 @@ function New-GHIssue {
 		[String]$Title,
 
 		# Body of the issue
-		[Parameter(Mandatory = $true)]
-		[String]$Body,
+		[Parameter(Mandatory = $false)]
+		[String[]]$Body,
 
 		# Name of the repository
 		[Parameter(Mandatory = $false)]
