@@ -13,7 +13,7 @@ There are a lot of features that we want to add including -
 
 If you're interested in helping out, please feel free to!
 
-## Installaion
+## Installation
 
 You can get the latest release of the GHAdmin PowerShell module by cloning this repo. Once that is done, you can import the module using the following command -
 
