@@ -3,10 +3,12 @@ on:
   push:
     branches:
       - actions-test
+
 jobs:
   first_job:
     name: The first one
     runs-on: ubuntu-latest
     steps:
+
     - name: Print working directory listing
       run: ls -al
