@@ -9,7 +9,6 @@ on:
 jobs:
   monday:
     runs-on: ubuntu-latest
-    if: "github.event.label.name == 'bug'"
     steps:
     - name: Hello world
       uses: actions/hello-world-javascript-action@v1
