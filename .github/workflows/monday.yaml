@@ -1,0 +1,21 @@
+---
+name: Create item in monday.com
+
+on:
+  issues:
+    types: [opened, reopened, closed]
+  issue_comment:
+    types: [created, edited, deleted]
+
+jobs:
+  monday:
+    name: Monday.com
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo
+      - uses: actions/checkout@v2
+        with:
+          repository: github/monday-action
+          path: actions
+          ssh-key: '${{ secrets.MONDAY_DEPLOY_KEY }}'
+          
