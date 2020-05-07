@@ -10,10 +10,10 @@ jobs:
   monday:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Repo
-      - uses: actions/checkout@v2
-        with:
-          repository: github/monday-action
-          path: actions
-          ssh-key: '${{ secrets.MONDAY_DEPLOY_KEY }}'
+    - name: Checkout Repo
+    - uses: actions/checkout@v2
+      with:
+        repository: github/monday-action
+        path: actions
+        ssh-key: '${{ secrets.MONDAY_DEPLOY_KEY }}'
           
