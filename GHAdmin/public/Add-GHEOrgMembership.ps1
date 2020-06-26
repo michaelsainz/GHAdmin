@@ -62,3 +62,6 @@ function Add-GHEOrgMembership {
 		Write-Debug -Message 'Exiting function: Add-GHEOrgMembership'
 	}
 }
+
+Write-Verbose -Message "End"
+
