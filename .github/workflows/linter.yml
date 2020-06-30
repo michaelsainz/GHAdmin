@@ -41,3 +41,5 @@ jobs:
       ################################
       - name: Lint Code Base
         uses: docker://github/super-linter:v2.2.2
+        env:
+          ACTIONS_RUNNER_DEBUG: true
